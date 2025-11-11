@@ -696,8 +696,9 @@
             position: relative;
             height: 100%;
             width: 100%;
-            min-height: 200px; /* 最小高度，防止初始渲染时尺寸错误 */
+            min-height: 500px; /* 最小高度，防止初始渲染时尺寸错误 */
             max-height: 100%; /* 最大高度限制 */
+            max-width: 100%; /* 最大宽度限制，防止大图闪现 */
             border-radius: 0; /* 无圆角 */
             overflow: hidden;
             background: rgba(255, 255, 255, 0.05);
@@ -706,17 +707,19 @@
             display: flex;
             align-items: center;
             justify-content: center; /* 图片居中 */
+            box-sizing: border-box; /* 确保尺寸计算包含border */
         }
 
         .image-grid-item img {
-            max-width: 100%;
-            max-height: 100%;
+            max-width: 100% !important; /* 强制限制最大宽度 */
+            max-height: 100% !important; /* 强制限制最大高度 */
             width: auto;
             height: auto;
             object-fit: contain; /* 保持比例，居中显示 */
             display: block; /* 避免内联元素的默认行为 */
             opacity: 0; /* 初始隐藏，防止闪现 */
             transition: opacity 0.2s ease; /* 淡入效果 */
+            box-sizing: border-box; /* 确保尺寸计算正确 */
         }
         
         .image-grid-item img[complete],
@@ -1344,6 +1347,18 @@
         .result-container:hover {
             opacity: 0.9;
         }
+        
+        /* 4张图片时，去掉容器样式 */
+        .result-container.image-container-4x1 {
+            background: transparent !important; /* 透明背景 */
+            padding: 0 !important; /* 移除padding */
+            margin-top: 6px; /* 减小与提示词的间距 */
+            cursor: pointer; /* 保持可点击 */
+        }
+        
+        .result-container.image-container-4x1:hover {
+            opacity: 1; /* hover时保持不透明 */
+        }
 
         .result-container .image-grid {
             display: flex;
@@ -1354,9 +1369,48 @@
             justify-content: center; /* 图片居中 */
             align-items: stretch; /* 拉伸以填充容器高度 */
             width: 100%;
-            min-height: 200px; /* 最小高度 */
+            min-height: 500px; /* 最小高度 */
             max-height: 600px; /* 最大高度限制，防止闪现大图 */
             height: auto; /* 改为auto，避免初始渲染问题 */
+            overflow: hidden; /* 防止内容溢出 */
+            box-sizing: border-box; /* 确保尺寸计算正确 */
+        }
+        
+        /* 1:1比例四张图片横向排列 */
+        .result-container .image-grid.image-grid-4x1 {
+            flex-wrap: nowrap; /* 不换行 */
+            justify-content: flex-start; /* 左对齐 */
+            gap: 0; /* 移除gap，避免留白 */
+            align-items: stretch; /* 拉伸对齐，确保所有图片项高度一致 */
+            height: auto; /* 高度自适应，等于图片项高度 */
+            width: 100%; /* 宽度与其他图片列表保持一致 */
+            padding: 0; /* 移除内边距 */
+            margin: 0; /* 移除外边距 */
+        }
+        
+        .result-container .image-grid.image-grid-4x1 .image-grid-item {
+            flex: 0 0 25%; /* 每张固定占25%宽度 */
+            min-width: 0; /* 允许缩小 */
+            max-width: 25%; /* 每张最多占25% */
+            aspect-ratio: 1; /* 保持1:1比例，高度自动等于宽度 */
+            padding: 0; /* 移除内边距 */
+            margin: 0; /* 移除外边距 */
+            border: none !important; /* 移除所有边框 */
+            position: relative; /* 用于定位图片 */
+            box-sizing: border-box; /* 包含border在宽度计算内 */
+            background: transparent !important; /* 透明背景 */
+        }
+        
+        .result-container .image-grid.image-grid-4x1 .image-grid-item img {
+            width: 100% !important; /* 宽度填充容器 */
+            height: 100% !important; /* 高度填充容器 */
+            max-width: 100% !important;
+            max-height: 100% !important;
+            object-fit: contain !important; /* 保持1:1比例，不裁剪 */
+            object-position: center; /* 居中显示 */
+            position: absolute; /* 绝对定位，填充容器 */
+            top: 0;
+            left: 0;
         }
         
         /* 提示词样式 - 在线框外 */
@@ -2653,17 +2707,13 @@
                     console.log(`🔄 任务 ${taskId} 显示loading, 状态: ${task.status}`);
                     return `
                         <div>
+                            ${this.renderPromptOnly(task)}
                             <div class="result-container">
-                                <div class="result-left">
-                                    <div class="image-grid" style="display: flex; align-items: center; justify-content: center; min-height: 200px;">
-                                        <div class="loading-spinner">
-                                            <div class="spinner"></div>
-                                            <div style="margin-top: 20px; color: #80A5A0; font-size: 0.9rem;">图片生成中</div>
-                                        </div>
+                                <div class="image-grid" style="display: flex; align-items: center; justify-content: center; min-height: 500px; max-height: 600px;">
+                                    <div class="loading-spinner">
+                                        <div class="spinner"></div>
+                                        <div style="margin-top: 20px; color: #80A5A0; font-size: 0.9rem;">图片生成中</div>
                                     </div>
-                                </div>
-                                <div class="result-right">
-                                    ${this.renderGenerationParams(task, '')}
                                 </div>
                             </div>
                         </div>
@@ -2672,22 +2722,40 @@
                 
                 // 支持多张图片显示
                 if (task.result_urls && task.result_urls.length > 0) {
+                    // 检测是否是1:1比例的四张图片
+                    const isSquare4Images = task.result_urls.length === 4 && 
+                                           task.request_data && 
+                                           task.request_data.width === task.request_data.height;
+                    
+                    // 根据情况添加不同的class
+                    const gridClass = isSquare4Images ? 'image-grid image-grid-4x1' : 'image-grid';
+                    
                     // 多张图片模式 - 宫格布局
+                    // 如果是1:1比例的四张图片，使用特殊的样式
+                    const imageItemStyle = isSquare4Images 
+                        ? "max-width: 100%; box-sizing: border-box; padding: 0; margin: 0; position: relative; aspect-ratio: 1;"
+                        : "min-height: 500px; max-height: 100%; max-width: 100%; box-sizing: border-box;";
+                    const imageStyle = isSquare4Images
+                        ? "width: 100% !important; height: 100% !important; max-width: 100% !important; max-height: 100% !important; object-fit: contain !important; object-position: center; display: block; opacity: 0; box-sizing: border-box; position: absolute; top: 0; left: 0;"
+                        : "max-width: 100% !important; max-height: 100% !important; width: auto; height: auto; object-fit: contain; display: block; opacity: 0; box-sizing: border-box;";
+                    
                     const imagesHtml = task.result_urls.map((url, index) => `
-                        <div class="image-grid-item" onclick="event.stopPropagation(); manager.previewTaskDetail('${taskId}', ${index})" style="min-height: 200px; max-height: 100%;">
+                        <div class="image-grid-item" onclick="event.stopPropagation(); manager.previewTaskDetail('${taskId}', ${index})" style="${imageItemStyle}">
                             <img src="${url}" 
                                  alt="生成结果 ${index + 1}" 
                                  loading="lazy"
-                                 style="max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; display: block;"
+                                 style="${imageStyle}"
                                  onload="this.style.opacity='1'; this.setAttribute('data-loaded', 'true');">
                         </div>
                     `).join('');
                     
+                    // 4张图片时，容器不显示背景，只保留点击功能
+                    const containerClass = isSquare4Images ? 'result-container image-container-4x1' : 'result-container';
                     return `
                         <div>
                             ${this.renderPromptOnly(task)}
-                            <div class="result-container" onclick="manager.previewTaskDetail('${taskId}', 0)">
-                                <div class="image-grid" style="min-height: 200px; max-height: 600px;">
+                            <div class="${containerClass}" onclick="manager.previewTaskDetail('${taskId}', 0)">
+                                <div class="${gridClass}" style="${isSquare4Images ? 'min-height: 200px; height: auto;' : 'min-height: 500px; max-height: 600px;'}">
                                     ${imagesHtml}
                                 </div>
                             </div>
@@ -2699,12 +2767,12 @@
                         <div>
                             ${this.renderPromptOnly(task)}
                             <div class="result-container" onclick="manager.previewTaskDetail('${taskId}')">
-                                <div class="image-grid" style="min-height: 200px; max-height: 600px;">
-                                    <div class="image-grid-item" style="min-height: 200px; max-height: 100%;">
+                                <div class="image-grid" style="min-height: 500px; max-height: 600px;">
+                                    <div class="image-grid-item" style="min-height: 500px; max-height: 100%; max-width: 100%; box-sizing: border-box;">
                                         <img src="${task.result_url}" 
                                              alt="生成结果" 
                                              loading="lazy"
-                                             style="max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; display: block;"
+                                             style="max-width: 100% !important; max-height: 100% !important; width: auto; height: auto; object-fit: contain; display: block; opacity: 0; box-sizing: border-box;"
                                              onload="this.style.opacity='1'; this.setAttribute('data-loaded', 'true');">
                                     </div>
                                 </div>
@@ -2712,18 +2780,29 @@
                         </div>
                     `;
                 } else {
-                    // 没有图片的情况（如失败任务），只显示参数信息
+                    // 没有图片的情况（如失败任务），显示状态信息
                     console.log(`❌ 任务 ${taskId} 显示无图片, 状态: ${task.status}, 有result_urls: ${!!task.result_urls}, 有result_url: ${!!task.result_url}`);
+                    
+                    // 根据任务状态显示不同的提示信息
+                    let statusMessage = '无图片';
+                    let statusColor = '#757575';
+                    if (task.status === 'failed') {
+                        statusMessage = task.error || '生成失败';
+                        statusColor = '#dc3545';
+                    } else if (task.status === 'completed' && !task.result_url && !task.result_urls) {
+                        statusMessage = '无图片';
+                        statusColor = '#757575';
+                    }
+                    
                     return `
                         <div>
-                            <div class="result-container" onclick="manager.previewTaskDetail('${taskId}')">
-                                <div class="result-left">
-                                    <div class="image-grid" style="display: flex; align-items: center; justify-content: center; min-height: 200px; color: #757575;">
-                                        <div>无图片</div>
+                            ${this.renderPromptOnly(task)}
+                            <div class="result-container">
+                                <div class="image-grid" style="display: flex; align-items: center; justify-content: center; min-height: 500px; max-height: 600px;">
+                                    <div style="color: ${statusColor}; font-size: 0.9rem; text-align: center;">
+                                        <div style="margin-bottom: 10px; font-size: 1.2rem;">${task.status === 'failed' ? '❌' : '📭'}</div>
+                                        <div>${statusMessage}</div>
                                     </div>
-                                </div>
-                                <div class="result-right">
-                                    ${this.renderGenerationParams(task, duration)}
                                 </div>
                             </div>
                         </div>
@@ -3271,7 +3350,7 @@
                     // 多图模式：只显示当前索引的图片
                     const currentUrl = task.result_urls[this.currentImageIndex];
                     const imageHtml = `
-                        <div class="image-grid-item" style="position: relative; min-height: 200px; max-height: 100%;">
+                        <div class="image-grid-item" style="position: relative; min-height: 500px; max-height: 100%;">
                             <img src="${currentUrl}" 
                                  alt="生成结果 ${this.currentImageIndex + 1}" 
                                  loading="lazy"
@@ -3297,7 +3376,7 @@
                 } else if (task.result_url) {
                     // 单图模式
                     const imageHtml = `
-                        <div class="image-grid-item" style="position: relative; min-height: 200px; max-height: 100%;">
+                        <div class="image-grid-item" style="position: relative; min-height: 500px; max-height: 100%;">
                             <img src="${task.result_url}" 
                                  alt="生成结果" 
                                  loading="lazy"
@@ -3505,11 +3584,20 @@
                         // 根据图片实际比例计算容器宽度
                         const adjustImageContainerWidth = (img) => {
                             const container = img.closest('.image-grid-item');
+                            const imageGrid = container?.closest('.image-grid');
+                            // 如果是4张1:1图片的布局，不调整宽度（由CSS固定）
+                            if (imageGrid && imageGrid.classList.contains('image-grid-4x1')) {
+                                return;
+                            }
                             if (container && img.naturalWidth && img.naturalHeight) {
                                 const aspectRatio = img.naturalWidth / img.naturalHeight;
-                                const fixedHeight = 200;
+                                const fixedHeight = 500;
                                 const calculatedWidth = fixedHeight * aspectRatio;
-                                container.style.width = calculatedWidth + 'px';
+                                // 限制最大宽度，防止大图闪现
+                                const maxWidth = container.closest('.result-container')?.offsetWidth || window.innerWidth;
+                                const finalWidth = Math.min(calculatedWidth, maxWidth - 20); // 减去padding和gap
+                                container.style.width = finalWidth + 'px';
+                                container.style.maxWidth = finalWidth + 'px';
                             }
                         };
                         
