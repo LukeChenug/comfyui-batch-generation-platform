@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🧪 多图生成测试</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            margin: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+        input, textarea, select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        .btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+        .btn:hover {
+            background: #0056b3;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            white-space: pre-wrap;
+        }
+        .success { background: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+        .error { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+        .info { background: #d1ecf1; border: 1px solid #bee5eb; color: #0c5460; }
+        .images {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .images img {
+            max-width: 200px;
+            max-height: 200px;
+            object-fit: cover;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+        }
+        .param-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 多图生成测试工具</h1>
+        <p>测试ComfyUI批量生图平台的多图功能</p>
+
+        <div class="form-group">
+            <label>API服务器地址</label>
+            <input type="text" id="apiServer" value="http://localhost:8000" placeholder="http://localhost:8000">
+        </div>
+
+        <div class="form-group">
+            <label>提示词</label>
+            <textarea id="prompt" rows="3" placeholder="a cute red apple on white background">a cute red apple on white background</textarea>
+        </div>
+
+        <div class="form-group">
+            <label>负面提示词</label>
+            <input type="text" id="negativePrompt" value="ugly, blurry" placeholder="ugly, blurry">
+        </div>
+
+        <div class="param-row">
+            <div class="form-group">
+                <label>宽度</label>
+                <input type="number" id="width" value="768" min="64" max="2048" step="64">
+            </div>
+            <div class="form-group">
+                <label>高度</label>
+                <input type="number" id="height" value="768" min="64" max="2048" step="64">
+            </div>
+        </div>
+
+        <div class="param-row">
+            <div class="form-group">
+                <label>采样步数</label>
+                <input type="number" id="steps" value="20" min="1" max="100">
+            </div>
+            <div class="form-group">
+                <label>CFG强度</label>
+                <input type="number" id="cfg" value="2.0" min="0" max="30" step="0.1">
+            </div>
+        </div>
+
+        <div class="param-row">
+            <div class="form-group">
+                <label>🎯 生成数量 (关键测试参数)</label>
+                <select id="batchSize">
+                    <option value="1">1张 (单图)</option>
+                    <option value="2" selected>2张 (测试多图)</option>
+                    <option value="3">3张 (多图)</option>
+                    <option value="4">4张 (最大)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>种子值 (可选)</label>
+                <input type="number" id="seed" placeholder="留空随机">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <button class="btn" onclick="submitTest()">🚀 提交测试任务</button>
+            <button class="btn" onclick="checkTasks()">📋 检查任务列表</button>
+            <button class="btn" onclick="clearResults()">🗑️ 清除结果</button>
+        </div>
+
+        <div id="results"></div>
+    </div>
+
+    <script>
+        let currentTaskId = null;
+        let pollInterval = null;
+
+        function showResult(message, type = 'info') {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = `result ${type}`;
+            div.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            results.appendChild(div);
+            results.scrollTop = results.scrollHeight;
+        }
+
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+        }
+
+        async function submitTest() {
+            const apiServer = document.getElementById('apiServer').value;
+            
+            const requestData = {
+                prompt: document.getElementById('prompt').value,
+                negative_prompt: document.getElementById('negativePrompt').value,
+                width: parseInt(document.getElementById('width').value),
+                height: parseInt(document.getElementById('height').value),
+                steps: parseInt(document.getElementById('steps').value),
+                cfg: parseFloat(document.getElementById('cfg').value),
+                batch_size: parseInt(document.getElementById('batchSize').value),
+                seed: document.getElementById('seed').value ? parseInt(document.getElementById('seed').value) : null,
+                batch_name: "multi_image_test"
+            };
+
+            showResult(`🚀 提交任务，生成数量: ${requestData.batch_size}张`, 'info');
+            showResult(`请求数据: ${JSON.stringify(requestData, null, 2)}`, 'info');
+
+            try {
+                const response = await fetch(`${apiServer}/generate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestData)
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    currentTaskId = result.task_id;
+                    showResult(`✅ 任务提交成功！任务ID: ${currentTaskId}`, 'success');
+                    
+                    // 开始轮询任务状态
+                    startPolling(apiServer);
+                } else {
+                    showResult(`❌ 任务提交失败: ${response.status} ${response.statusText}`, 'error');
+                }
+            } catch (error) {
+                showResult(`❌ 网络错误: ${error.message}`, 'error');
+            }
+        }
+
+        async function startPolling(apiServer) {
+            if (pollInterval) clearInterval(pollInterval);
+            
+            pollInterval = setInterval(async () => {
+                try {
+                    const response = await fetch(`${apiServer}/task/${currentTaskId}`);
+                    if (response.ok) {
+                        const task = await response.json();
+                        showResult(`📊 进度: ${task.progress.toFixed(1)}% - ${task.message}`, 'info');
+                        
+                        if (task.status === 'completed') {
+                            clearInterval(pollInterval);
+                            showResult(`🎉 任务完成！`, 'success');
+                            
+                            // 显示结果分析
+                            showResult(`📋 结果分析:`, 'info');
+                            showResult(`  单图URL: ${task.result_url || 'N/A'}`, 'info');
+                            showResult(`  多图URLs: ${task.result_urls || 'N/A'}`, 'info');
+                            
+                            if (task.result_urls && Array.isArray(task.result_urls)) {
+                                showResult(`✅ 成功检测到多图支持！生成了${task.result_urls.length}张图片`, 'success');
+                                displayImages(apiServer, task.result_urls);
+                            } else if (task.result_url) {
+                                showResult(`⚠️  只检测到单图URL，多图功能可能未工作`, 'error');
+                                displayImages(apiServer, [task.result_url]);
+                            } else {
+                                showResult(`❌ 没有检测到任何图片URL`, 'error');
+                            }
+                        } else if (task.status === 'failed') {
+                            clearInterval(pollInterval);
+                            showResult(`❌ 任务失败: ${task.error || '未知错误'}`, 'error');
+                        }
+                    }
+                } catch (error) {
+                    showResult(`❌ 轮询错误: ${error.message}`, 'error');
+                }
+            }, 5000); // 每5秒检查一次
+        }
+
+        function displayImages(apiServer, urls) {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = 'result success';
+            div.innerHTML = `
+                <strong>生成的图片:</strong>
+                <div class="images">
+                    ${urls.map((url, i) => `
+                        <div>
+                            <img src="${apiServer}${url}" alt="图片${i+1}" title="图片${i+1}: ${url}">
+                            <br><small>图片${i+1}</small>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+            results.appendChild(div);
+        }
+
+        async function checkTasks() {
+            const apiServer = document.getElementById('apiServer').value;
+            
+            try {
+                const response = await fetch(`${apiServer}/tasks`);
+                if (response.ok) {
+                    const data = await response.json();
+                    const tasks = data.tasks || [];
+                    
+                    showResult(`📋 获取到 ${tasks.length} 个任务`, 'info');
+                    
+                    // 显示前5个最新的已完成任务
+                    const completedTasks = tasks
+                        .filter(t => t.status === 'completed')
+                        .slice(0, 5);
+                    
+                    showResult(`🔍 最新的 ${completedTasks.length} 个已完成任务:`, 'info');
+                    
+                    completedTasks.forEach((task, i) => {
+                        const hasMultiImages = task.result_urls && Array.isArray(task.result_urls);
+                        const imageCount = hasMultiImages ? task.result_urls.length : (task.result_url ? 1 : 0);
+                        
+                        showResult(`  ${i+1}. ${task.task_id.substring(0, 8)} - ${imageCount}张图片 ${hasMultiImages ? '✅' : '❌'}`, 'info');
+                    });
+                } else {
+                    showResult(`❌ 获取任务列表失败: ${response.status}`, 'error');
+                }
+            } catch (error) {
+                showResult(`❌ 网络错误: ${error.message}`, 'error');
+            }
+        }
+
+        // 页面加载时显示说明
+        document.addEventListener('DOMContentLoaded', function() {
+            showResult('🧪 多图生成测试工具已准备就绪', 'info');
+            showResult('💡 请设置生成数量为2-4张，然后点击"提交测试任务"', 'info');
+            showResult('📋 也可以点击"检查任务列表"查看现有任务的多图支持情况', 'info');
+        });
+    </script>
+</body>
+</html>

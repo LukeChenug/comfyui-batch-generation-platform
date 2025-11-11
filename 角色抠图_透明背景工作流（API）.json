@@ -1,0 +1,59 @@
+{
+  "26": {
+    "inputs": {
+      "model": [
+        "27",
+        0
+      ],
+      "images": [
+        "28",
+        0
+      ]
+    },
+    "class_type": "RembgByBiRefNet",
+    "_meta": {
+      "title": "RembgByBiRefNet"
+    }
+  },
+  "27": {
+    "inputs": {
+      "model": "General.safetensors",
+      "device": "AUTO",
+      "use_weight": true,
+      "dtype": "float32"
+    },
+    "class_type": "LoadRembgByBiRefNetModel",
+    "_meta": {
+      "title": "LoadRembgByBiRefNetModel"
+    }
+  },
+  "28": {
+    "inputs": {
+      "image": "screenshot-20251111-140914.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "加载图像"
+    }
+  },
+  "31": {
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "images": [
+        "26",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "保存图像"
+    }
+  },
+  "35": {
+    "inputs": {},
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "预览图像"
+    }
+  }
+}
