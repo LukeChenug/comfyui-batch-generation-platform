@@ -332,24 +332,61 @@ Get-Content logs\api_server.log -Tail 50
 tail -f logs/api_server.log
 ```
 
-#### 4. 任务状态获取失败
+#### 4. 任务状态获取失败（HTTP 404错误）
 
 **问题现象：**
 - 任务提交成功，但显示"API连接失败，无法获取任务状态"
+- 错误信息：`HTTP 404: 获取任务状态失败`
 - 任务一直处于"generating"状态
+- `/tasks` 端点可以访问，但 `/status/{task_id}` 返回404
 
 **解决方案：**
 
-**原因1：API端点路径错误（已修复）**
+**原因1：运行了错误的API服务器（最常见）**
+- 可能运行了 `comfyui_workflow_api.py` 而不是 `comfyui_api_server.py`
+- `comfyui_workflow_api.py` 没有 `/status/{task_id}` 端点，导致404错误
+
+**快速诊断：**
+```bash
+# 检查正在运行的API服务器进程
+ps aux | grep -E "comfyui_api_server|comfyui_workflow_api" | grep -v grep
+
+# 检查API文档标题
+curl -s http://localhost:8001/docs | grep -i "title"
+# 正确应该显示：ComfyUI批量生图API
+# 错误可能显示：ComfyUI 多工作流 API
+```
+
+**修复步骤：**
+```bash
+# 1. 停止所有API服务器进程
+pkill -f "comfyui_workflow_api"
+pkill -f "comfyui_api_server"
+
+# 2. 启动正确的API服务器
+python3 comfyui_api_server.py
+
+# 或使用后台运行
+nohup python3 comfyui_api_server.py > logs/api_server.log 2>&1 &
+
+# 3. 验证服务器启动
+curl http://localhost:8001/health
+# 应该返回：{"api_server":"online","comfyui_server":"online",...}
+
+# 4. 测试status端点
+curl http://localhost:8001/status/任务ID
+```
+
+**原因2：API端点路径错误（已修复）**
 - 前端使用 `/status/{task_id}` 获取任务状态
 - 确保API服务器端点正确：`GET /status/{task_id}`
 
-**原因2：网络不稳定**
+**原因3：网络不稳定**
 - 代码已实现自动重试机制
 - 连续失败5次后才会停止轮询
 - 失败后会自动增加重试延迟
 
-**原因3：任务ID不匹配**
+**原因4：任务ID不匹配**
 - 检查任务ID是否正确
 - 查看浏览器控制台（F12）的错误信息
 
@@ -594,6 +631,62 @@ curl http://localhost:8001/status/任务ID
 - 使用CSS containment可以显著减少布局重排
 - 已加载的图片状态应该被保存和恢复，避免重复加载
 - `will-change` 属性可以提示浏览器优化特定属性的变化
+
+### 2025-11-12 - 换电脑后API服务器连接问题修复
+
+**问题描述：**
+1. 换电脑后API连接失败 - 显示"HTTP 404: 获取任务状态失败"
+2. `/tasks` 端点可以访问，但 `/status/{task_id}` 返回404
+3. 任务提交后无法获取状态更新
+
+**根本原因：**
+- 运行了错误的API服务器：`comfyui_workflow_api.py` 而不是 `comfyui_api_server.py`
+- `comfyui_workflow_api.py` 没有实现 `/status/{task_id}` 端点
+- 换电脑后可能启动了错误的服务器文件
+
+**解决方案：**
+1. **识别正确的API服务器**
+   - 正确的服务器：`comfyui_api_server.py`（包含完整的批量任务管理功能）
+   - 错误的服务器：`comfyui_workflow_api.py`（只有工作流处理功能）
+
+2. **停止错误的服务器并启动正确的服务器**
+   ```bash
+   # 停止所有API服务器
+   pkill -f "comfyui_workflow_api"
+   pkill -f "comfyui_api_server"
+   
+   # 启动正确的API服务器
+   python3 comfyui_api_server.py
+   ```
+
+3. **验证服务器是否正确运行**
+   ```bash
+   # 检查健康状态
+   curl http://localhost:8001/health
+   # 应该返回：{"api_server":"online","comfyui_server":"online",...}
+   
+   # 检查API文档标题
+   curl -s http://localhost:8001/docs | grep -i "title"
+   # 正确应该显示：ComfyUI批量生图API
+   ```
+
+4. **换电脑后的配置检查清单**
+   - ✅ 确认ComfyUI服务器地址（`comfyui_api_server.py` 中的 `COMFYUI_SERVER`）
+   - ✅ 确认API服务器正确启动（`comfyui_api_server.py` 而不是 `comfyui_workflow_api.py`）
+   - ✅ 确认前端API地址配置（Web界面中的"API服务器地址"）
+   - ✅ 测试连接：`curl http://localhost:8001/health`
+
+**相关文件：**
+- `comfyui_api_server.py` - 正确的API服务器（包含 `/status/{task_id}` 端点）
+- `comfyui_workflow_api.py` - 工作流处理模块（不是API服务器）
+
+**经验总结：**
+- 换电脑后需要确认运行的是正确的API服务器文件
+- 可以通过检查API文档标题或健康检查端点来验证
+- 使用 `ps aux | grep` 命令检查正在运行的进程
+- 建议使用 `quick_start.sh` 脚本启动，避免手动启动错误
+
+---
 
 ### 2025-01-XX - 16:9图片显示优化（2行2列布局）
 
