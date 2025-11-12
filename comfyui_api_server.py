@@ -820,8 +820,13 @@ async def process_single_task(task_id: str, request: GenerationRequest, task_man
         batch_size_in_workflow = workflow.get(batch_node, {}).get('inputs', {}).get('batch_size', 'N/A')
         
         logger.info(f"🔧 任务 {task_id} - 工作流类型: {workflow_type}")
+        logger.info(f"🔧 任务 {task_id} - 请求参数 batch_size: {request.batch_size}")
         logger.info(f"🔧 任务 {task_id} - 批量节点({batch_node})的batch_size: {batch_size_in_workflow}")
         logger.info(f"🔧 任务 {task_id} - 输出节点: {output_node} (SaveImage)")
+        
+        # 验证 batch_size 是否正确设置
+        if batch_size_in_workflow != request.batch_size:
+            logger.warning(f"⚠️ 任务 {task_id} - batch_size 不匹配！请求: {request.batch_size}, 工作流: {batch_size_in_workflow}")
         
         async with ComfyUIManager() as comfy:
             task_manager.update_task(task_id, progress=25, message="提交任务到ComfyUI...")
@@ -886,6 +891,9 @@ async def process_single_task(task_id: str, request: GenerationRequest, task_man
                     if images:
                         # 调试日志：记录图像数量和输出节点
                         logger.info(f"🖼️ 任务 {task_id} - 从节点{output_node}获取到 {len(images)} 张图片")
+                        logger.info(f"🖼️ 任务 {task_id} - 请求的batch_size: {request.batch_size}, 实际生成: {len(images)} 张")
+                        if len(images) != request.batch_size:
+                            logger.warning(f"⚠️ 任务 {task_id} - 生成数量不匹配！请求: {request.batch_size} 张, 实际: {len(images)} 张")
                         
                         result_urls = []
                         

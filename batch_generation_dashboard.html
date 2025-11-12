@@ -88,6 +88,33 @@
             color: #80A5A0;
         }
 
+        .layout-toggle {
+            cursor: pointer;
+            padding: 6px 12px;
+            border-radius: 4px;
+            background: rgba(128, 165, 160, 0.1);
+            border: 1px solid rgba(128, 165, 160, 0.3);
+            color: #80A5A0;
+            font-size: 18px;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 36px;
+            height: 28px;
+        }
+
+        .layout-toggle:hover {
+            background: rgba(128, 165, 160, 0.2);
+            border-color: rgba(128, 165, 160, 0.5);
+            color: #a0c5c0;
+        }
+
+        .layout-toggle.active {
+            background: rgba(128, 165, 160, 0.3);
+            border-color: #80A5A0;
+        }
+
         /* 统计弹窗样式 */
         .stats-modal {
             display: none;
@@ -214,7 +241,7 @@
         .panel {
             background: transparent;
             border-radius: 0;
-            padding: 20px 200px; /* 🎯 上下padding为20px，左右padding为200px */
+            padding: 20px clamp(100px, 8vw, 200px); /* 🎯 减小左右padding，让内容区域更宽：最小100px，最大200px，根据视口宽度8%计算 */
             border-right: 1px solid #333333;
             overflow-y: auto;
             overflow-x: hidden;
@@ -652,24 +679,79 @@
         }
 
         .task-list {
-            overflow-y: auto;
-            overflow-x: hidden;
-            flex: 1;
-            min-height: 0; /* 允许flex子元素缩小，确保滚动生效 */
-            padding: 0; /* 移除上下边距，整页面滚动 */
+            overflow: visible; /* 移除滚动，让内容自然扩展 */
+            flex: 0 0 auto; /* 根据内容自然高度，不占用flex空间 */
+            padding: 0; /* 移除上下边距 */
             margin: 0; /* 移除所有外边距 */
-            -ms-overflow-style: none; /* IE and Edge */
-            scrollbar-width: none; /* Firefox */
+        }
+
+        /* 宫格布局样式 - 瀑布流布局 */
+        .task-list.grid-layout {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); /* 🎯 列宽240px */
+            grid-auto-rows: 1px; /* 使用1px作为基础行高单位 */
+            grid-auto-flow: dense; /* 密集排列，填充空隙 */
+            gap: 4px !important; /* 图片之间4px间距 */
+            row-gap: 4px !important; /* 纵向间距4px */
+            column-gap: 4px !important; /* 横向间距4px */
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+
+        .task-list.grid-layout .task-item {
+            margin: 0 !important;
+            margin-bottom: 0 !important;
+            margin-top: 0 !important;
+            background: transparent;
+            border: none;
+            padding: 0 !important;
+            grid-column: span 1; /* 每张图片占据1列 */
+            position: relative;
+        }
+
+        .task-list.grid-layout .task-item-grid {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+            overflow: hidden;
+            background: transparent !important; /* 透明背景，无间距 */
+            display: block;
+            margin: 0 !important;
+            padding: 0 !important;
+            border: none !important;
+            box-sizing: border-box;
+        }
+
+        .task-list.grid-layout .task-item-grid img {
+            width: 100%;
+            height: 100%;
+            display: block;
+            object-fit: cover; /* 填充容器，保持比例 */
+            transition: transform 0.3s ease, opacity 0.2s ease;
+            opacity: 0;
+            margin: 0 !important;
+            padding: 0 !important;
+            border: none !important;
+        }
+
+        .task-list.grid-layout .task-item-grid img[data-loaded="true"] {
+            opacity: 1;
+        }
+
+        .task-list.grid-layout .task-item-grid:hover img {
+            transform: scale(1.02);
+        }
+
+        .task-list.grid-layout .task-header-left,
+        .task-list.grid-layout .task-header-right,
+        .task-list.grid-layout .prompt-only {
+            display: none !important;
         }
         
         /* 移除第一个任务项的顶部间距 */
         .task-list > .task-item:first-child {
             margin-top: 0;
-        }
-        
-        /* 隐藏task-list滚动条 */
-        .task-list::-webkit-scrollbar {
-            display: none; /* Chrome, Safari, Edge */
         }
 
         .task-item {
@@ -1926,6 +2008,7 @@
         <select class="aspect-ratio-select" id="aspectRatio" onchange="updateAspectRatio()">
             <option value="custom">自定义尺寸</option>
             <option value="1:1">1:1 正方形</option>
+            <option value="21:9">21:9 超宽屏</option>
             <option value="16:9">16:9 横屏</option>
             <option value="9:16">9:16 竖屏</option>
             <option value="4:3">4:3 横屏</option>
@@ -1940,6 +2023,9 @@
         <h1>HOJO AI</h1>
         <div style="display: flex; align-items: center; gap: 15px;">
             <a href="#" class="stats-link" onclick="event.preventDefault(); openStatsModal();">任务统计</a>
+            <div class="layout-toggle" id="layoutToggle" onclick="manager.toggleLayout()" title="切换布局">
+                <span id="layoutIcon">⊞</span>
+            </div>
             <div class="connection-status disconnected" id="connectionStatus">
                 🔴 检测连接中...
             </div>
@@ -2072,6 +2158,7 @@
                     <select class="aspect-ratio-select" id="aspectRatioMobile" onchange="updateAspectRatioMobile()">
                         <option value="custom">自定义尺寸</option>
                         <option value="1:1">1:1 正方形</option>
+                        <option value="21:9">21:9 超宽屏</option>
                         <option value="16:9">16:9 横屏</option>
                         <option value="9:16">9:16 竖屏</option>
                         <option value="4:3">4:3 横屏</option>
@@ -2184,9 +2271,16 @@
                 this.maxRetries = 3;
                 this.viewMode = 'all'; // 默认显示所有状态，包括 generating
                 this.currentImageIndex = 0; // 当前显示的图片索引（用于多图切换）
+                this.layoutMode = 'list'; // 布局模式：'list' 或 'grid'
                 
                 // 初始化时加载本地保存的任务参数
                 this.loadTasksFromLocalStorage();
+                // 加载布局偏好
+                const savedLayout = localStorage.getItem('imageListLayout');
+                if (savedLayout === 'grid' || savedLayout === 'list') {
+                    this.layoutMode = savedLayout;
+                }
+                this.updateLayoutToggle();
                 this.init();
             }
 
@@ -2240,12 +2334,19 @@
             
             async testApiConnection() {
                 try {
+                    // 创建超时控制器
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5秒超时
+                    
                     const response = await fetch(`${this.apiServer}/health`, {
                         method: 'GET',
                         headers: {
                             'Content-Type': 'application/json',
                         },
+                        signal: controller.signal
                     });
+                    
+                    clearTimeout(timeoutId);
                     
                     if (response.ok) {
                         const data = await response.json();
@@ -2258,9 +2359,15 @@
                         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                     }
                 } catch (error) {
-                    console.error('❌ API连接测试失败:', error);
-                    this.apiConnected = false;
-                    this.updateApiStatus(false, error.message);
+                    if (error.name === 'AbortError') {
+                        console.error('❌ API连接测试超时（5秒）');
+                        this.apiConnected = false;
+                        this.updateApiStatus(false, '连接超时');
+                    } else {
+                        console.error('❌ API连接测试失败:', error);
+                        this.apiConnected = false;
+                        this.updateApiStatus(false, error.message);
+                    }
                     return false;
                 }
             }
@@ -2534,6 +2641,29 @@
                     status.title = errorMessage;
                 }
             }
+
+            toggleLayout() {
+                this.layoutMode = this.layoutMode === 'list' ? 'grid' : 'list';
+                localStorage.setItem('imageListLayout', this.layoutMode);
+                this.updateLayoutToggle();
+                this.updateTaskList();
+            }
+
+            updateLayoutToggle() {
+                const toggle = document.getElementById('layoutToggle');
+                const icon = document.getElementById('layoutIcon');
+                if (toggle && icon) {
+                    if (this.layoutMode === 'grid') {
+                        icon.textContent = '☰';
+                        toggle.title = '切换到列表布局';
+                        toggle.classList.add('active');
+                    } else {
+                        icon.textContent = '⊞';
+                        toggle.title = '切换到宫格布局';
+                        toggle.classList.remove('active');
+                    }
+                }
+            }
             
             // 将相对路径转换为完整的图片URL
             getImageUrl(url) {
@@ -2585,75 +2715,79 @@
                 console.log('✅ 立即显示临时任务:', tempTaskId);
                 
                 try {
-                // 处理图片上传
-                const imageFile = document.getElementById('inputImage').files[0];
-                let inputImageName = null;
-                
-                if (imageFile) {
-                    // 如果有上传图片，先上传图片
-                    const formData = new FormData();
-                    formData.append('file', imageFile);
+                    // 处理图片上传（仅图生图工作流需要）
+                    let inputImageName = null;
                     
-                    try {
-                        const uploadResult = await fetch(`${this.apiServer}/upload_image`, {
-                            method: 'POST',
-                            body: formData
-                        });
+                    // 只有图生图工作流才处理输入图片
+                    if (workflowType === 'qwen_img2img' || workflowType === 'rembg') {
+                        const imageFile = document.getElementById('inputImage').files[0];
                         
-                        if (uploadResult.ok) {
-                            const uploadData = await uploadResult.json();
-                            inputImageName = uploadData.filename;
-                        } else {
-                            throw new Error('图片上传失败');
-                        }
-                    } catch (error) {
-                            // 移除临时任务
-                            delete this.tasks[tempTaskId];
-                            this.updateTaskList();
-                        this.showErrorMessage(`图片上传失败: ${error.message}`);
-                        return;
-                    }
-                }
-                
-                    request.input_image = inputImageName;
-
-                    // Qwen 图生图支持多张输入图片
-                    if (workflowType === 'qwen_img2img') {
-                        // 尝试上传第2张和第3张图片
-                        const inputImage2 = document.getElementById('inputImage2').files[0];
-                        const inputImage3 = document.getElementById('inputImage3').files[0];
-                        
-                        if (inputImage2) {
+                        if (imageFile) {
+                            // 如果有上传图片，先上传图片
+                            const formData = new FormData();
+                            formData.append('file', imageFile);
+                            
                             try {
-                                const formData2 = new FormData();
-                                formData2.append('file', inputImage2);
-                                const uploadResult2 = await fetch(`${this.apiServer}/upload_image`, {
+                                const uploadResult = await fetch(`${this.apiServer}/upload_image`, {
                                     method: 'POST',
-                                    body: formData2
+                                    body: formData
                                 });
-                                if (uploadResult2.ok) {
-                                    const uploadData2 = await uploadResult2.json();
-                                    request.input_image2 = uploadData2.filename;
+                                
+                                if (uploadResult.ok) {
+                                    const uploadData = await uploadResult.json();
+                                    inputImageName = uploadData.filename;
+                                } else {
+                                    throw new Error('图片上传失败');
                                 }
-                } catch (error) {
-                                console.warn('第2张图片上传失败:', error);
+                            } catch (error) {
+                                // 移除临时任务
+                                delete this.tasks[tempTaskId];
+                                this.updateTaskList();
+                                this.showErrorMessage(`图片上传失败: ${error.message}`);
+                                return;
                             }
                         }
                         
-                        if (inputImage3) {
-                            try {
-                                const formData3 = new FormData();
-                                formData3.append('file', inputImage3);
-                                const uploadResult3 = await fetch(`${this.apiServer}/upload_image`, {
-                                    method: 'POST',
-                                    body: formData3
-                                });
-                                if (uploadResult3.ok) {
-                                    const uploadData3 = await uploadResult3.json();
-                                    request.input_image3 = uploadData3.filename;
+                        request.input_image = inputImageName;
+
+                        // Qwen 图生图支持多张输入图片
+                        if (workflowType === 'qwen_img2img') {
+                            // 尝试上传第2张和第3张图片
+                            const inputImage2 = document.getElementById('inputImage2').files[0];
+                            const inputImage3 = document.getElementById('inputImage3').files[0];
+                            
+                            if (inputImage2) {
+                                try {
+                                    const formData2 = new FormData();
+                                    formData2.append('file', inputImage2);
+                                    const uploadResult2 = await fetch(`${this.apiServer}/upload_image`, {
+                                        method: 'POST',
+                                        body: formData2
+                                    });
+                                    if (uploadResult2.ok) {
+                                        const uploadData2 = await uploadResult2.json();
+                                        request.input_image2 = uploadData2.filename;
+                                    }
+                                } catch (error) {
+                                    console.warn('第2张图片上传失败:', error);
                                 }
-                            } catch (error) {
-                                console.warn('第3张图片上传失败:', error);
+                            }
+                            
+                            if (inputImage3) {
+                                try {
+                                    const formData3 = new FormData();
+                                    formData3.append('file', inputImage3);
+                                    const uploadResult3 = await fetch(`${this.apiServer}/upload_image`, {
+                                        method: 'POST',
+                                        body: formData3
+                                    });
+                                    if (uploadResult3.ok) {
+                                        const uploadData3 = await uploadResult3.json();
+                                        request.input_image3 = uploadData3.filename;
+                                    }
+                                } catch (error) {
+                                    console.warn('第3张图片上传失败:', error);
+                                }
                             }
                         }
                     }
@@ -2743,11 +2877,11 @@
                             this.showSuccessMessage('图片生成完成！');
                             return;
                         } else if (taskData.status === 'failed' || taskData.status === 'error') {
-                            // 任务失败
+                            // 任务失败，直接清除任务
                             if (this.tasks[taskId]) {
-                                this.tasks[taskId].status = 'failed';
-                                this.tasks[taskId].error = taskData.error || '任务失败';
+                                delete this.tasks[taskId];
                                 this.updateTaskList();
+                                this.updateStats();
                             }
                             this.showErrorMessage(taskData.error || '图片生成失败');
                             return;
@@ -2773,12 +2907,12 @@
                         if (attempts < maxAttempts) {
                             setTimeout(poll, pollInterval);
                         } else {
-                            // 超时
+                            // 超时，直接清除任务
                             console.warn(`⏰ 任务 ${taskId} 轮询超时`);
                             if (this.tasks[taskId]) {
-                                this.tasks[taskId].status = 'failed';
-                                this.tasks[taskId].error = '任务超时，请检查服务器状态';
+                                delete this.tasks[taskId];
                                 this.updateTaskList();
+                                this.updateStats();
                             }
                             this.showErrorMessage('任务超时，请检查服务器状态');
                             await this.refreshTasks();
@@ -2793,13 +2927,13 @@
                             await this.testApiConnection();
                         }
                         
-                        // 如果连续多次失败，可能是API关闭了
+                        // 如果连续多次失败，可能是API关闭了，直接清除任务
                         if (consecutiveErrors >= maxConsecutiveErrors) {
                             console.warn(`❌ 任务 ${taskId} 连续${maxConsecutiveErrors}次轮询失败，停止轮询`);
                             if (this.tasks[taskId]) {
-                                this.tasks[taskId].status = 'failed';
-                                this.tasks[taskId].error = `API连接失败，无法获取任务状态: ${error.message}`;
+                                delete this.tasks[taskId];
                                 this.updateTaskList();
+                                this.updateStats();
                             }
                             this.showErrorMessage(`无法连接到服务器: ${error.message}`);
                             return;
@@ -2813,11 +2947,11 @@
                             console.log(`⏳ ${retryDelay}ms后重试...`);
                             setTimeout(poll, retryDelay);
                         } else {
-                            // 超时
+                            // 超时，直接清除任务
                             if (this.tasks[taskId]) {
-                                this.tasks[taskId].status = 'failed';
-                                this.tasks[taskId].error = '任务超时，请检查服务器状态';
+                                delete this.tasks[taskId];
                                 this.updateTaskList();
+                                this.updateStats();
                             }
                             this.showErrorMessage('任务超时，请检查服务器状态');
                         }
@@ -2862,6 +2996,11 @@
                             }
                         } else {
                             // 本地没有参数（老任务），直接使用ComfyUI数据
+                            // 如果任务失败，不添加到列表中
+                            if (comfyTask.status === 'failed' || comfyTask.status === 'error') {
+                                console.log('⏭️ 跳过失败的历史任务:', taskId);
+                                return;
+                            }
                             this.tasks[taskId] = comfyTask;
                             console.log('📥 添加ComfyUI历史任务:', taskId);
                         }
@@ -2877,10 +3016,10 @@
                             const elapsedMinutes = (now - createdTime) / (1000 * 60);
                             
                             if (elapsedMinutes > 5) {
-                                console.warn(`⚠️ 任务 ${taskId} 长时间处于generating状态，标记为失败`);
-                                task.status = 'failed';
-                                task.error = '任务可能未成功提交到服务器';
+                                console.warn(`⚠️ 任务 ${taskId} 长时间处于generating状态，清除任务`);
+                                delete this.tasks[taskId];
                                 this.updateTaskList();
+                                this.updateStats();
                             }
                         }
                     });
@@ -2899,10 +3038,10 @@
                             const elapsedMinutes = (now - createdTime) / (1000 * 60);
                             
                             if (elapsedMinutes > 10) {
-                                console.warn(`⚠️ 任务 ${taskId} 长时间处于generating状态且无法刷新，标记为失败`);
-                                task.status = 'failed';
-                                task.error = '无法连接到服务器，任务状态未知';
+                                console.warn(`⚠️ 任务 ${taskId} 长时间处于generating状态且无法刷新，清除任务`);
+                                delete this.tasks[taskId];
                                 this.updateTaskList();
+                                this.updateStats();
                             }
                         }
                     });
@@ -2932,6 +3071,13 @@
             updateTaskList() {
                 const taskList = document.getElementById('taskList');
                 
+                // 根据布局模式设置CSS类
+                if (this.layoutMode === 'grid') {
+                    taskList.classList.add('grid-layout');
+                } else {
+                    taskList.classList.remove('grid-layout');
+                }
+                
                 // 调试：打印所有任务状态
                 const allTasks = Object.values(this.tasks);
                 const generatingTasksBefore = allTasks.filter(t => t.status === 'generating');
@@ -2939,14 +3085,28 @@
                 console.log('🔍 过滤前 - generating 状态任务:', generatingTasksBefore.map(t => ({ id: t.task_id, status: t.status, created_at: t.created_at })));
                 console.log('🔍 当前 viewMode:', this.viewMode);
                 
-                // 根据viewMode过滤任务
+                // 根据viewMode过滤任务，失败任务和无图片任务直接过滤掉，不显示
                 let filteredTasks = Object.values(this.tasks).filter(task => {
+                    // 失败任务直接过滤掉，不显示在列表中
+                    if (task.status === 'failed' || task.status === 'error') {
+                        return false;
+                    }
+                    
+                    // 已完成但没有图片的任务也过滤掉
+                    if (task.status === 'completed') {
+                        const hasImages = (task.result_urls && task.result_urls.length > 0) || task.result_url;
+                        if (!hasImages) {
+                            return false; // 已完成但没有图片，不显示
+                        }
+                    }
+                    
                     if (this.viewMode === 'completed') {
                         return task.status === 'completed';
                     } else if (this.viewMode === 'failed') {
-                        return task.status === 'failed';
+                        // 失败视图模式也不显示（因为失败任务已经被过滤）
+                        return false;
                     }
-                    return true; // 'all' 或其他值：显示所有状态，包括 generating, running, completed, failed
+                    return true; // 'all' 或其他值：显示所有状态，包括 generating, running, completed（有图片的）
                 });
                 
                 console.log('🔍 过滤后（排序前）任务数量:', filteredTasks.length);
@@ -3008,6 +3168,16 @@
                         return `${year}/${month}/${day}`;
                     };
 
+                    // 宫格布局模式：只显示图片，不显示标题和提示词
+                    if (this.layoutMode === 'grid') {
+                        return `
+                        <div class="task-item" data-task-id="${task.task_id}">
+                            ${this.renderResultImages(task, duration, existingImages.get(task.task_id))}
+                        </div>
+                        `;
+                    }
+                    
+                    // 列表布局模式：显示完整信息
                     return `
                     <div class="task-item" data-task-id="${task.task_id}">
                         <div class="task-header">
@@ -3017,7 +3187,6 @@
                         
                         <div class="task-details">
                             ${this.renderWorkflowTitle(task)}
-                            ${task.error ? `<div style="color: #f44336;"><strong>错误:</strong> ${task.error}</div>` : ''}
                             ${this.renderResultImages(task, duration, existingImages.get(task.task_id))}
                         </div>
                     </div>
@@ -3039,10 +3208,83 @@
                             });
                         }
                     });
+                    
+                    // 宫格布局：调整瀑布流高度
+                    if (this.layoutMode === 'grid') {
+                        const gridImages = taskList.querySelectorAll('.task-item-grid img');
+                        gridImages.forEach(img => {
+                            if (img.complete) {
+                                this.adjustGridItemHeight(img);
+                            }
+                        });
+                    }
                 });
                 
                 // 同步参数信息区域高度与图片区域高度
                 this.syncParamsHeight();
+            }
+
+            // 调整瀑布流布局中图片的高度
+            adjustGridItemHeight(img) {
+                if (this.layoutMode !== 'grid') return;
+                
+                const gridItem = img.closest('.task-item-grid');
+                if (!gridItem) return;
+                
+                const taskItem = gridItem.closest('.task-item');
+                if (!taskItem) return;
+                
+                // 等待图片完全加载后再计算
+                if (!img.complete || img.naturalHeight === 0) {
+                    img.onload = () => this.adjustGridItemHeight(img);
+                    return;
+                }
+                
+                // 基础行高和gap
+                const baseRowHeight = 1; // grid-auto-rows的基础单位
+                const rowGap = 4; // row-gap的值
+                
+                // 使用图片的自然高度和容器宽度计算实际显示高度
+                const containerWidth = taskItem.offsetWidth || taskItem.getBoundingClientRect().width;
+                if (containerWidth === 0) {
+                    // 如果容器宽度为0，延迟计算
+                    setTimeout(() => this.adjustGridItemHeight(img), 50);
+                    return;
+                }
+                
+                const aspectRatio = img.naturalWidth / img.naturalHeight;
+                const imageHeight = containerWidth / aspectRatio;
+                
+                // 计算需要的行数
+                // 当有row-gap时，需要解方程：imageHeight = rowSpan * baseRowHeight + (rowSpan - 1) * rowGap
+                // 即：imageHeight = rowSpan * (baseRowHeight + rowGap) - rowGap
+                // 所以：rowSpan = (imageHeight + rowGap) / (baseRowHeight + rowGap)
+                let rowSpan = Math.round((imageHeight + rowGap) / (baseRowHeight + rowGap));
+                
+                // 验证计算：实际占据的高度
+                let actualHeight = rowSpan * baseRowHeight + (rowSpan - 1) * rowGap;
+                
+                // 如果实际高度明显大于图片高度（超过2px），尝试减少一行
+                if (actualHeight > imageHeight + 2) {
+                    rowSpan = Math.max(1, rowSpan - 1);
+                    actualHeight = rowSpan * baseRowHeight + (rowSpan - 1) * rowGap;
+                }
+                
+                // 如果实际高度明显小于图片高度（小于-2px），尝试增加一行
+                if (actualHeight < imageHeight - 2) {
+                    rowSpan = rowSpan + 1;
+                    actualHeight = rowSpan * baseRowHeight + (rowSpan - 1) * rowGap;
+                }
+                
+                // 设置grid-row-end，确保精确匹配
+                taskItem.style.gridRowEnd = `span ${rowSpan}`;
+                taskItem.style.gridRowStart = 'auto';
+                gridItem.style.height = `${imageHeight}px`;
+                gridItem.style.width = '100%';
+                
+                // 确保图片完全填充容器
+                img.style.width = '100%';
+                img.style.height = '100%';
             }
 
             renderResultImages(task, duration = '', existingImageState = null) {
@@ -3075,6 +3317,21 @@
                 
                 // 支持多张图片显示
                 if (task.result_urls && task.result_urls.length > 0) {
+                    // 宫格布局模式 - 瀑布流
+                    if (this.layoutMode === 'grid') {
+                        const firstImageUrl = this.getImageUrl(task.result_urls[0]);
+                        return `
+                            <div class="task-item-grid" onclick="manager.previewTaskDetail('${taskId}', 0)" data-task-id="${taskId}">
+                                <img src="${firstImageUrl}" 
+                                     alt="生成结果" 
+                                     loading="lazy"
+                                     style="width: 100%; height: auto; display: block; object-fit: cover;"
+                                     onload="manager.adjustGridItemHeight(this); this.setAttribute('data-loaded', 'true');"
+                                     onerror="console.error('图片加载失败:', '${firstImageUrl}'); this.style.display='none';">
+                            </div>
+                        `;
+                    }
+                    
                     const imageCount = task.result_urls.length;
                     // 检测是否是四张图片（不管是1:1还是16:9）
                     const is4Images = imageCount === 4;
@@ -4518,6 +4775,7 @@
             
             const aspectRatios = {
                 '1:1': { width: 1024, height: 1024 },
+                '21:9': { width: 2016, height: 864 },
                 '16:9': { width: 1664, height: 928 },
                 '9:16': { width: 928, height: 1664 },
                 '4:3': { width: 1472, height: 1140 },
@@ -4540,6 +4798,7 @@
             
             const aspectRatios = {
                 '1:1': { width: 1024, height: 1024 },
+                '21:9': { width: 2016, height: 864 },
                 '16:9': { width: 1664, height: 928 },
                 '9:16': { width: 928, height: 1664 },
                 '4:3': { width: 1472, height: 1140 },
