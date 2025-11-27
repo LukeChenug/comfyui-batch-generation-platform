@@ -50,9 +50,13 @@ cd comfyui-batch-generation-platform
 ```
 comfyui-batch-generation-platform/
 ├── batch_generation_dashboard.html    # 🌐 Web管理界面
-├── comfyui_api_server.py              # ⚙️ 后端API服务器
-├── comfyui_workflow_api.py            # 🔧 工作流API处理
-├── api_examples.py                    # 📝 Python SDK示例
+├── backend/                           # ⚙️ 后端服务目录
+│   ├── src/
+│   │   ├── main.py                    # 🚀 应用入口
+│   │   ├── routes/                    # 🛣️ API路由
+│   │   ├── services/                  # 🧠 业务逻辑
+│   │   ├── adapters/                  # 🔌 外部适配器 (ComfyUI, S3等)
+│   │   └── database/                  # 🗄️ 数据库操作
 ├── quick_start.sh                     # 🚀 一键启动脚本
 ├── requirements.txt                   # 📦 Python依赖
 ├── tasks.db                           # 🗃️ 任务数据库（自动创建）

@@ -1,0 +1,85 @@
+{
+  "id": "7371158b-881f-4e17-9ec1-21cca4881432",
+  "workflow_version_id": "17233c70-dd64-4232-a65c-2fe97a987ccd",
+  "workflow_inputs": {
+    "input_text": "987"
+  },
+  "workflow_id": "c0a77ef9-f1c6-420a-b5f0-18a494cd21d0",
+  "machine_id": "8dcc0b5a-8f0b-4dd5-b6aa-f9d6b73d0077",
+  "origin": "api",
+  "status": "success",
+  "ended_at": "2025-11-27T15:52:59.541000Z",
+  "created_at": "2025-11-27T15:51:26.950000Z",
+  "updated_at": "2025-11-27T15:52:59.541000Z",
+  "queued_at": "2025-11-27T15:51:34.138000Z",
+  "started_at": "2025-11-27T15:51:46.067000Z",
+  "gpu_event_id": "abd36074-5cd0-456f-9065-ce89326a4868",
+  "gpu": "A10G",
+  "machine_version": null,
+  "machine_type": "comfy-deploy-serverless",
+  "modal_function_call_id": "fc-01KB306B71XPGHKTEJ3WG0REZG",
+  "user_id": "user_3639RYl1m7pTNKZ7DGUU3QZiiTW",
+  "org_id": "org_3639VFWa3P5NzFsH16nfbZKoxqE",
+  "live_status": "Executing ComfyDeployOutputImage",
+  "progress": 1.0,
+  "is_realtime": false,
+  "webhook": null,
+  "webhook_status": null,
+  "webhook_intermediate_status": false,
+  "outputs": [
+    {
+      "id": "dcb7ee36-b41a-464f-b7a1-f91fc1230f69",
+      "output_id": null,
+      "run_id": "7371158b-881f-4e17-9ec1-21cca4881432",
+      "data": {
+        "images": [
+          {
+            "url": "https://comfy-deploy-output.s3.us-east-2.amazonaws.com/outputs/runs/7371158b-881f-4e17-9ec1-21cca4881432/ComfyUI_00001_.png",
+            "type": "output",
+            "filename": "ComfyUI_00001_.png",
+            "is_public": true,
+            "subfolder": "",
+            "upload_duration": 0.8065662109999892
+          }
+        ]
+      },
+      "node_meta": {
+        "node_id": "60"
+      },
+      "created_at": "2025-11-27T15:52:59.189000Z",
+      "updated_at": "2025-11-27T15:52:59.189000Z",
+      "type": null,
+      "node_id": null
+    },
+    {
+      "id": "51e9f5ae-945b-4c96-829a-fa773fe16a4b",
+      "output_id": "output_images",
+      "run_id": "7371158b-881f-4e17-9ec1-21cca4881432",
+      "data": {
+        "images": [
+          {
+            "url": "https://comfy-deploy-output.s3.us-east-2.amazonaws.com/outputs/runs/7371158b-881f-4e17-9ec1-21cca4881432/ComfyUI_00002_.png",
+            "type": "output",
+            "filename": "ComfyUI_00002_.png",
+            "is_public": true,
+            "subfolder": "",
+            "upload_duration": 0.48517462099999875
+          }
+        ]
+      },
+      "node_meta": {
+        "node_id": "90"
+      },
+      "created_at": "2025-11-27T15:52:58.848000Z",
+      "updated_at": "2025-11-27T15:52:58.848000Z",
+      "type": null,
+      "node_id": null
+    }
+  ],
+  "number": 0,
+  "duration": 92.590739,
+  "cold_start_duration": 11.928332,
+  "cold_start_duration_total": 19.11686,
+  "run_duration": 73.473879,
+  "queue_position": null
+}

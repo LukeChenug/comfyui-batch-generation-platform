@@ -786,6 +786,7 @@
             position: relative;
             width: 100%;
             height: 100%;
+            min-height: 150px; /* 🚀 兜底高度，防止图片计算未完成时不可见 */
             cursor: pointer;
             overflow: hidden;
             background: transparent !important; /* 透明背景，无间距 */
@@ -802,7 +803,7 @@
             display: block;
             object-fit: cover; /* 填充容器，保持比例 */
             transition: transform 0.3s ease, opacity 0.2s ease;
-            opacity: 0;
+            opacity: 1; /* 🚀 强制默认可见，防止JS加载检测失效导致图片隐藏 */
             margin: 0 !important;
             padding: 0 !important;
             border: none !important;
@@ -894,7 +895,7 @@
             height: auto;
             object-fit: contain; /* 保持比例，居中显示 */
             display: block; /* 避免内联元素的默认行为 */
-            opacity: 0; /* 初始隐藏，防止闪现 */
+            opacity: 1; /* 🚀 强制默认可见 */
             transition: opacity 0.2s ease; /* 淡入效果 */
             box-sizing: border-box; /* 确保尺寸计算正确 */
             contain: layout style paint; /* 🎯 优化渲染性能，避免布局重排 */
@@ -2678,7 +2679,7 @@
     <script>
         class BatchGenerationManager {
             constructor() {
-                this.apiServer = 'http://localhost:8001';
+                this.apiServer = 'http://127.0.0.1:8001'; // 默认使用IPv4，避免localhost解析问题
                 this.ws = null;
                 this.tasks = {};
                 this.refreshInterval = null;
@@ -2769,20 +2770,92 @@
 
 
             async init() {
-                // WebSocket 功能已禁用，使用轮询方式更新任务状态
-                // this.connectWebSocket();
+                console.log('🚀 [INIT] 开始初始化...');
                 
-                // 首先测试API连接
-                await this.testApiConnection();
+                // 🚀 启动时强制初始化 UI 状态
+                this.initTheme();
+                this.initDragResizer();
+                this.initLayoutMode();
+                this.initViewMode();
+                this.updateLayoutToggle();
+                this.toggleGenerationMode();
+                this.syncParamsHeight();
                 
-                // 然后刷新任务列表
+                console.log('🚀 [INIT] 当前本地任务数量:', Object.keys(this.tasks).length);
+                
+                // 🎯 关键改进：图片显示与API状态完全解耦
+                // 1. 立即渲染本地缓存的任务（不等待任何网络请求）
+                const taskList = document.getElementById('taskList');
+                if (taskList) taskList.innerHTML = '';
+                
+                if (Object.keys(this.tasks).length > 0) {
+                    console.log('🚀 [INIT] 立即渲染本地缓存任务');
+                    this.updateTaskList();
+                    this.updateStats();
+                }
+                
+                // 2. 独立的API连接状态检测（不影响图片显示）
+                this.startConnectionMonitor();
+                
+                // 3. 独立的任务刷新（静默失败，不影响UI）
                 this.refreshTasks();
                 
-                // 定期刷新 (只在API连接正常时)
-                this.startRefreshTimer();
+                // 4. 定时刷新任务（30秒）
+                setInterval(() => this.refreshTasks(), 30000);
+                
+                // 5. 尝试连接WebSocket（可选）
+                this.connectWebSocket();
+                
+                // 监听窗口大小变化，调整布局
+                window.addEventListener('resize', () => {
+                    this.syncParamsHeight();
+                    if (this.layoutMode === 'grid') {
+                        const images = document.querySelectorAll('.task-item-grid img');
+                        images.forEach(img => {
+                            this.adjustGridItemHeight(img);
+                        });
+                    }
+                });
+                
+                console.log('✅ [INIT] 初始化完成');
+            }
+            
+            // 🎯 新增：独立的连接状态监控器
+            startConnectionMonitor() {
+                // 立即检测一次
+                this.testApiConnection();
+                
+                // 每10秒检测一次连接状态（独立于任务刷新）
+                setInterval(() => {
+                    this.testApiConnection();
+                }, 10000);
+            }
 
-                // 初始化拖拽分割线
-                this.initDragResizer();
+            // 初始化布局模式
+            initLayoutMode() {
+                const savedLayout = localStorage.getItem('imageListLayout');
+                if (savedLayout === 'grid' || savedLayout === 'list') {
+                    this.layoutMode = savedLayout;
+                } else {
+                    this.layoutMode = 'grid'; // 默认网格模式
+                }
+                
+                const taskList = document.getElementById('taskList');
+                if (taskList) {
+                    if (this.layoutMode === 'grid') {
+                        taskList.classList.add('grid-layout');
+                    } else {
+                        taskList.classList.remove('grid-layout');
+                    }
+                }
+                this.updateLayoutToggle();
+            }
+            
+            // 初始化视图模式
+            initViewMode() {
+                // 默认显示所有，不持久化ViewMode，每次重置
+                this.viewMode = 'all';
+                this.updateTaskMonitorTitle();
             }
 
             // 拖拽分割线逻辑
@@ -2859,9 +2932,9 @@
             
             async testApiConnection() {
                 try {
-                    // 创建超时控制器
+                    // 🎯 创建超时控制器（5秒超时，更宽容）
                     const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5秒超时
+                    const timeoutId = setTimeout(() => controller.abort(), 5000);
                     
                     const response = await fetch(`${this.apiServer}/health`, {
                         method: 'GET',
@@ -2875,56 +2948,62 @@
                     
                     if (response.ok) {
                         const data = await response.json();
-                        console.log('✅ API连接正常:', data);
                         
-                        // 更新ComfyUI服务器状态
-                        if (data.comfyui_server) {
-                            const comfyuiStatus = document.getElementById('comfyuiStatus');
-                            const comfyuiStatusInfo = document.getElementById('comfyuiStatusInfo');
-                            
-                            if (data.comfyui_server === 'online') {
-                                const statusText = `✅ 在线 (${data.comfyui_url || '已连接'})`;
-                                if (comfyuiStatus) {
-                                    comfyuiStatus.textContent = `✅ ComfyUI: 在线`;
-                                    comfyuiStatus.className = 'connection-status connected';
-                                    comfyuiStatus.title = `ComfyUI服务器: ${data.comfyui_url || '未知'}`;
-                                }
-                                if (comfyuiStatusInfo) {
-                                    comfyuiStatusInfo.textContent = statusText;
-                                    comfyuiStatusInfo.style.color = '#80A5A0';
-                                }
-                            } else {
-                                const errorMsg = data.comfyui_error ? ` - ${data.comfyui_error}` : '';
-                                if (comfyuiStatus) {
-                                    comfyuiStatus.textContent = `🔴 ComfyUI: 离线`;
-                                    comfyuiStatus.className = 'connection-status disconnected';
-                                    comfyuiStatus.title = `ComfyUI服务器连接失败: ${data.comfyui_url || '未知'}${errorMsg}`;
-                                }
-                                if (comfyuiStatusInfo) {
-                                    comfyuiStatusInfo.textContent = `🔴 离线${errorMsg}`;
-                                    comfyuiStatusInfo.style.color = '#c62828';
-                                }
-                            }
+                        // 🎯 只有状态真正改变时才更新UI，避免闪烁
+                        if (!this.apiConnected) {
+                            console.log('✅ API连接恢复');
+                            this.apiConnected = true;
+                            this.retryCount = 0;
+                            this.updateApiStatus(true);
                         }
                         
-                        this.apiConnected = true;
-                        this.retryCount = 0;
-                        this.updateApiStatus(true);
+                        // 更新ComfyUI服务器状态（独立显示）
+                        this.updateComfyUIStatus(data);
+                        
                         return true;
                     } else {
-                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                        throw new Error(`HTTP ${response.status}`);
                     }
                 } catch (error) {
-                    if (error.name === 'AbortError') {
-                        console.error('❌ API连接测试超时（5秒）');
+                    // 🎯 只有状态真正改变时才更新UI
+                    if (this.apiConnected) {
+                        console.error('❌ API连接断开:', error.name === 'AbortError' ? '超时' : error.message);
                         this.apiConnected = false;
-                        this.updateApiStatus(false, '连接超时');
-                    } else {
-                        console.error('❌ API连接测试失败:', error);
-                        this.apiConnected = false;
-                        this.updateApiStatus(false, error.message);
+                        this.updateApiStatus(false, error.name === 'AbortError' ? '连接超时' : '连接失败');
                     }
                     return false;
+                }
+            }
+            
+            // 🎯 新增：更新ComfyUI状态（独立于API状态）
+            updateComfyUIStatus(data) {
+                if (!data.comfyui_server) return;
+                
+                const comfyuiStatus = document.getElementById('comfyuiStatus');
+                const comfyuiStatusInfo = document.getElementById('comfyuiStatusInfo');
+                
+                if (data.comfyui_server === 'online') {
+                    const statusText = `✅ 在线 (${data.comfyui_url || '已连接'})`;
+                    if (comfyuiStatus) {
+                        comfyuiStatus.textContent = `✅ ComfyUI: 在线`;
+                        comfyuiStatus.className = 'connection-status connected';
+                        comfyuiStatus.title = `ComfyUI服务器: ${data.comfyui_url || '未知'}`;
+                    }
+                    if (comfyuiStatusInfo) {
+                        comfyuiStatusInfo.textContent = statusText;
+                        comfyuiStatusInfo.style.color = '#80A5A0';
+                    }
+                } else {
+                    const errorMsg = data.comfyui_error ? ` - ${data.comfyui_error}` : '';
+                    if (comfyuiStatus) {
+                        comfyuiStatus.textContent = `🔴 ComfyUI: 离线`;
+                        comfyuiStatus.className = 'connection-status disconnected';
+                        comfyuiStatus.title = `ComfyUI服务器连接失败: ${data.comfyui_url || '未知'}${errorMsg}`;
+                    }
+                    if (comfyuiStatusInfo) {
+                        comfyuiStatusInfo.textContent = `🔴 离线${errorMsg}`;
+                        comfyuiStatusInfo.style.color = '#c62828';
+                    }
                 }
             }
 
@@ -3022,34 +3101,17 @@
                         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                     }
                     
-                    // API调用成功，重置连接状态和重试计数
-                    if (!this.apiConnected || this.retryCount > 0) {
-                        this.apiConnected = true;
+                    // 🎯 API调用成功，重置重试计数（但不主动更新连接状态，由独立监控器负责）
+                    if (this.retryCount > 0) {
                         this.retryCount = 0;
-                        this.updateApiStatus(true);
-                        // 只有在没有手动暂停的情况下才重新启动定时器
-                        if (!this._manuallyPaused) {
-                            this.startRefreshTimer();
-                        }
+                        console.log('✅ API调用恢复正常，重置重试计数');
                     }
                     
                     return await response.json();
                 } catch (error) {
-                    console.error('API调用失败:', error);
-                    
-                    // 增加重试计数
-                    this.retryCount++;
-                    
-                    // 如果连续失败多次，才标记为连接失败
-                    if (this.retryCount >= 3) {
-                        this.apiConnected = false;
-                        this.updateApiStatus(false, error.message);
-                        
-                        // 尝试重新连接
-                        setTimeout(() => {
-                            this.testApiConnection();
-                        }, 5000);
-                    }
+                    // 🎯 静默失败：不因为任务刷新失败而改变连接状态
+                    // 连接状态由独立的 testApiConnection() 监控器负责
+                    console.warn('⚠️ API调用失败（不影响连接状态）:', error.message);
                     
                     // 只有在明确要求显示错误时才弹窗
                     if (showError) {
@@ -3628,9 +3690,10 @@
 
             async refreshTasks() {
                 try {
+                    // 🎯 静默调用API，不影响连接状态显示
                     const result = await this.apiCall('/tasks');
                     
-                    console.log('🔄 从ComfyUI获取执行信息:', result.tasks.length, '个任务');
+                    console.log('🔄 从服务器获取任务:', result.tasks.length, '个');
                     
                     // 获取ComfyUI返回的所有任务ID
                     const comfyTaskIds = new Set(result.tasks.map(task => task.task_id));
@@ -3682,18 +3745,21 @@
                             if (elapsedMinutes > 5) {
                                 console.warn(`⚠️ 任务 ${taskId} 长时间处于generating状态，清除任务`);
                                 delete this.tasks[taskId];
-                                this.updateTaskList();
-                                this.updateStats();
                             }
                         }
                     });
                     
+                    // 🚀 无论如何都要更新UI
                     this.updateTaskList();
                     this.updateStats();
                     this.updateTaskMonitorTitle();
                 } catch (error) {
-                    console.error('刷新任务失败:', error);
-                    // 即使刷新失败，也检查长时间处于generating状态的任务
+                    console.error('❌ 刷新任务失败:', error);
+                    
+                    // 🚀 关键修复：即使API失败，也要渲染本地缓存的任务！
+                    console.log('📦 API失败，尝试显示本地缓存任务:', Object.keys(this.tasks).length, '个');
+                    
+                    // 清理僵尸任务
                     const now = Date.now();
                     Object.keys(this.tasks).forEach(taskId => {
                         const task = this.tasks[taskId];
@@ -3704,11 +3770,14 @@
                             if (elapsedMinutes > 10) {
                                 console.warn(`⚠️ 任务 ${taskId} 长时间处于generating状态且无法刷新，清除任务`);
                                 delete this.tasks[taskId];
-                                this.updateTaskList();
-                                this.updateStats();
                             }
                         }
                     });
+                    
+                    // 🚀 强制更新UI，显示本地任务
+                    this.updateTaskList();
+                    this.updateStats();
+                    this.updateTaskMonitorTitle();
                 }
             }
 
@@ -3894,7 +3963,7 @@
                 this.syncParamsHeight();
             }
 
-            // 🚀 新的增量更新方法，消除闪烁
+            // 🚀 降级修复：回归全量更新逻辑，确保DOM一定被创建
             updateTaskList() {
                 const taskList = document.getElementById('taskList');
                 
@@ -3905,9 +3974,20 @@
                     taskList.classList.remove('grid-layout');
                 }
                 
-                // 1. 数据过滤与排序 (复用旧逻辑)
+                // 1. 数据过滤与排序
+                const TIMEOUT_MS = 30 * 60 * 1000; // 30分钟超时
+                const now = Date.now();
+
                 let filteredTasks = Object.values(this.tasks).filter(task => {
                     if (task.status === 'failed' || task.status === 'error') return false;
+                    
+                    // 僵尸任务过滤
+                    if ((task.status === 'generating' || task.status === 'running' || task.status === 'pending') && 
+                        task.created_at && 
+                        (now - new Date(task.created_at).getTime() > TIMEOUT_MS)) {
+                        return false;
+                    }
+
                     if (task.status === 'completed') {
                         const hasImages = (task.result_urls && task.result_urls.length > 0) || task.result_url;
                         if (!hasImages) return false;
@@ -3926,152 +4006,84 @@
                 // 2. 空状态处理
                 if (filteredTasks.length === 0) {
                     const emptyMessage = this.viewMode === 'failed' ? '暂无失败任务' : '暂无任务';
-                    // 只有当当前内容不是空提示时才更新，避免重复刷新
-                    if (!taskList.firstElementChild || !taskList.innerText.includes(emptyMessage)) {
-                        taskList.innerHTML = `<div style="text-align: center; padding: 50px; color: #757575;">${emptyMessage}</div>`;
-                    }
+                    taskList.innerHTML = `<div style="text-align: center; padding: 50px; color: #757575;">${emptyMessage}</div>`;
                     return;
                 }
                 
-                // 如果是从空状态变回来，先清空
-                if (taskList.children.length === 1 && taskList.innerText.includes('暂无')) {
-                    taskList.innerHTML = '';
-                }
-
-                // 3. 建立现有DOM索引
-                const existingNodesMap = new Map();
-                Array.from(taskList.children).forEach(node => {
-                    const taskId = node.getAttribute('data-task-id');
-                    if (taskId) existingNodesMap.set(taskId, node);
-                });
-
-                // 4. 增量更新循环
-                filteredTasks.forEach((task, index) => {
-                    const taskId = task.task_id;
-                    let taskNode = existingNodesMap.get(taskId);
-                    
-                    if (!taskNode) {
-                        // A. 新增节点
-                        const tempDiv = document.createElement('div');
-                        
-                        // 生成内部HTML
-                        let htmlContent = '';
-                        let duration = '';
-                        if (task.created_at && task.completed_at) {
-                            const start = new Date(task.created_at);
-                            const end = new Date(task.completed_at);
-                            duration = Math.round((end - start) / 1000);
-                        }
-
-                        if (this.layoutMode === 'grid') {
-                            htmlContent = `
-                            <div class="task-item" data-task-id="${taskId}" data-status="${task.status}" data-progress="${Math.round(task.progress||0)}">
-                                ${this.renderResultImages(task, duration, null)}
-                            </div>`;
-                        } else {
-                            htmlContent = `
-                            <div class="task-item" data-task-id="${taskId}" data-status="${task.status}" data-progress="${Math.round(task.progress||0)}">
-                                <div class="task-header">
-                                    <div class="task-header-left"></div>
-                                    <div class="task-header-right"></div>
-                                </div>
-                                <div class="task-details">
-                                    ${this.renderWorkflowTitle(task)}
-                                    ${this.renderResultImages(task, duration, null)}
-                                </div>
-                            </div>`;
-                        }
-                        
-                        tempDiv.innerHTML = htmlContent.trim();
-                        taskNode = tempDiv.firstChild;
-                        
-                        // 插入到DOM
-                        const currentChild = taskList.children[index];
-                        if (currentChild) {
-                            taskList.insertBefore(taskNode, currentChild);
-                        } else {
-                            taskList.appendChild(taskNode);
-                        }
-                        
-                        // 新节点入场动画
-                        taskNode.style.opacity = '0';
-                        requestAnimationFrame(() => {
-                            taskNode.style.transition = 'opacity 0.3s ease';
-                            taskNode.style.opacity = '1';
-                        });
-
-                    } else {
-                        // B. 现有节点：检查更新
-                        const oldStatus = taskNode.getAttribute('data-status');
-                        const oldProgress = parseInt(taskNode.getAttribute('data-progress') || 0);
-                        const newStatus = task.status;
-                        const newProgress = Math.round(task.progress || 0);
-                        
-                        // 判断是否需要重新渲染
-                        const needUpdate = (oldStatus !== newStatus) || 
-                                         (newStatus !== 'completed' && oldProgress !== newProgress); // 完成状态下不用管进度变化
-                        
-                        if (needUpdate) {
-                            // 更新数据属性
-                            taskNode.setAttribute('data-status', newStatus);
-                            taskNode.setAttribute('data-progress', newProgress);
-                            
-                            // 计算 duration
-                            let duration = '';
-                            if (task.created_at && task.completed_at) {
-                                const start = new Date(task.created_at);
-                                const end = new Date(task.completed_at);
-                                duration = Math.round((end - start) / 1000);
-                            }
-                            
-                            // 获取已加载图片状态
-                            const existingImages = taskNode.querySelectorAll('img[data-loaded="true"]');
-                            let imgState = null;
-                            if (existingImages.length > 0) {
-                                imgState = { loaded: true };
-                            }
-                            
-                            // 重新渲染内部HTML
-                            if (this.layoutMode === 'grid') {
-                                taskNode.innerHTML = this.renderResultImages(task, duration, imgState);
-                            } else {
-                                // List模式下，如果只是进度变化，且已经在generating状态，其实可以只更新进度条
-                                // 但为了简单，还是全量更新内部，依赖 imgState 保持图片不闪烁
-                                const newDetails = `
-                                    ${this.renderWorkflowTitle(task)}
-                                    ${this.renderResultImages(task, duration, imgState)}
-                                `;
-                                const detailsNode = taskNode.querySelector('.task-details');
-                                if (detailsNode) detailsNode.innerHTML = newDetails;
-                                else taskNode.innerHTML = `...重新生成结构...`; // 容错
-                            }
-                        }
-                        
-                        // 检查位置是否正确（处理排序变化）
-                        const currentChild = taskList.children[index];
-                        if (currentChild !== taskNode) {
-                            taskList.insertBefore(taskNode, currentChild);
-                        }
-                        
-                        // 从Map中移除，标记为保留
-                        existingNodesMap.delete(taskId);
+                // 3. 保存现有图片的加载状态，防止闪烁
+                const existingImages = new Map();
+                taskList.querySelectorAll('img[data-loaded="true"]').forEach(img => {
+                    // 尝试找到该图片所属的 task id
+                    const taskItem = img.closest('.task-item');
+                    if (taskItem) {
+                        const taskId = taskItem.getAttribute('data-task-id');
+                        if (taskId) existingImages.set(taskId, { loaded: true });
                     }
                 });
 
-                // 5. 清理多余节点 (在Map中剩余的)
-                existingNodesMap.forEach(node => node.remove());
+                // 4. 🚀 全量重建 DOM (简单粗暴，但绝对有效)
+                // 虽然会闪烁一下，但能保证显示。之前的Diff逻辑在某些情况下失效了。
+                taskList.innerHTML = filteredTasks.map(task => {
+                    // 计算用时
+                    let duration = '';
+                    if (task.created_at && task.completed_at) {
+                        const start = new Date(task.created_at);
+                        const end = new Date(task.completed_at);
+                        duration = Math.round((end - start) / 1000);
+                    }
+                    
+                    // 宫格布局
+                    if (this.layoutMode === 'grid') {
+                        return `
+                        <div class="task-item" data-task-id="${task.task_id}" data-status="${task.status}" data-progress="${Math.round(task.progress||0)}">
+                            ${this.renderResultImages(task, duration, existingImages.get(task.task_id))}
+                        </div>`;
+                    } 
+                    // 列表布局
+                    else {
+                        return `
+                        <div class="task-item" data-task-id="${task.task_id}" data-status="${task.status}" data-progress="${Math.round(task.progress||0)}">
+                            <div class="task-header">
+                                <div class="task-header-left"></div>
+                                <div class="task-header-right"></div>
+                            </div>
+                            <div class="task-details">
+                                ${this.renderWorkflowTitle(task)}
+                                ${this.renderResultImages(task, duration, existingImages.get(task.task_id))}
+                            </div>
+                        </div>`;
+                    }
+                }).join('');
                 
-                // 6. Grid高度调整 (每次都跑一下，确保布局正确)
-                if (this.layoutMode === 'grid') {
-                    requestAnimationFrame(() => {
-                        const gridImages = taskList.querySelectorAll('.task-item-grid img');
-                        gridImages.forEach(img => {
-                            if (img.complete) this.adjustGridItemHeight(img);
-                        });
-                        const loadingItems = taskList.querySelectorAll('.task-item-grid.generating');
-                        loadingItems.forEach(item => this.adjustLoadingGridItemHeight(item));
+                // 5. 恢复图片状态和调整布局
+                requestAnimationFrame(() => {
+                    // 立即显示已加载的图片
+                    const images = taskList.querySelectorAll('img');
+                    images.forEach(img => {
+                        // 如果图片在缓存里，或者之前已经加载过
+                        if (img.complete) {
+                            img.style.opacity = '1';
+                            img.setAttribute('data-loaded', 'true');
+                        }
                     });
-                }
+                    
+                    // 宫格布局高度调整
+                    if (this.layoutMode === 'grid') {
+                        const adjustAll = () => {
+                            const gridImages = taskList.querySelectorAll('.task-item-grid img');
+                            gridImages.forEach(img => {
+                                this.adjustGridItemHeight(img);
+                            });
+                            const loadingItems = taskList.querySelectorAll('.task-item-grid.generating');
+                            loadingItems.forEach(item => this.adjustLoadingGridItemHeight(item));
+                        };
+                        
+                        adjustAll();
+                        // 多次尝试，确保图片加载后能调整
+                        setTimeout(adjustAll, 100);
+                        setTimeout(adjustAll, 500);
+                    }
+                });
                 
                 this.syncParamsHeight();
             }
@@ -5477,10 +5489,38 @@
             });
         }
 
-        // 页面加载时初始化工作流
-        window.addEventListener('DOMContentLoaded', function() {
-            switchWorkflow();
-            setupMultipleImageUploads();
+        // 全局实例
+        let manager;
+
+        // 页面加载完成
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('HOJO AI DOM已就绪');
+            
+            // 🚀 延迟一点点初始化 Manager，确保所有 DOM 元素（尤其是 taskList）确实存在
+            setTimeout(() => {
+                try {
+                    manager = new BatchGenerationManager();
+                    console.log('BatchGenerationManager 初始化成功');
+                } catch (error) {
+                    console.error('BatchGenerationManager 初始化失败:', error);
+                }
+                
+                initImageUpload();
+                // initTaskStatsState(); // 这个函数不存在，注释掉
+                switchWorkflow();
+                setupMultipleImageUploads();
+            }, 100);
+
+            // 窗口大小改变时重新同步参数信息区域高度
+            let resizeTimer;
+            window.addEventListener('resize', function() {
+                clearTimeout(resizeTimer);
+                resizeTimer = setTimeout(() => {
+                    if (manager) {
+                        manager.syncParamsHeight();
+                    }
+                }, 250);
+            });
         });
 
         // ESC键关闭模态框
@@ -5490,15 +5530,6 @@
                 closeTaskDetailModal();
             }
         });
-
-        // 全局实例
-        let manager;
-        try {
-            manager = new BatchGenerationManager();
-            console.log('BatchGenerationManager 初始化成功');
-        } catch (error) {
-            console.error('BatchGenerationManager 初始化失败:', error);
-        }
 
         // 全局函数
         function submitSingle() {
@@ -5730,22 +5761,22 @@
         }
 
         // 页面加载完成
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('HOJO AI已加载');
-            initImageUpload();
-            initTaskStatsState(); // 初始化任务监控展开收起状态
+        // document.addEventListener('DOMContentLoaded', function() {
+        //    console.log('HOJO AI已加载');
+        //    initImageUpload();
+        //    initTaskStatsState(); // 初始化任务监控展开收起状态
             
             // 窗口大小改变时重新同步参数信息区域高度
-            let resizeTimer;
-            window.addEventListener('resize', function() {
-                clearTimeout(resizeTimer);
-                resizeTimer = setTimeout(() => {
-                    if (manager) {
-                        manager.syncParamsHeight();
-                    }
-                }, 250);
-            });
-        });
+            // let resizeTimer;
+            // window.addEventListener('resize', function() {
+            //    clearTimeout(resizeTimer);
+            //    resizeTimer = setTimeout(() => {
+            //        if (manager) {
+            //            manager.syncParamsHeight();
+            //        }
+            //    }, 250);
+            // });
+        // });
     </script>
 </body>
 </html>
