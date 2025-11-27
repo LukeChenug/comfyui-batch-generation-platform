@@ -41,8 +41,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # 配置
-COMFYUI_SERVER = "http://117.50.172.15:8188"
-COMFYUI_WS = "ws://117.50.172.15:8188/ws"
+COMFYUI_SERVER = "http://106.75.213.77:8188"
+COMFYUI_WS = "ws://106.75.213.77:8188/ws"
 OUTPUT_DIR = Path("./generated_images")
 DB_PATH = "./tasks.db"
 
@@ -90,8 +90,8 @@ class ComfyUIManager:
         self.ws = None
         
     async def __aenter__(self):
-        # 设置超时时间：连接超时10秒，读取超时60秒
-        timeout = aiohttp.ClientTimeout(total=60, connect=10)
+        # 设置超时时间：连接超时30秒，读取超时300秒
+        timeout = aiohttp.ClientTimeout(total=300, connect=30)
         self.session = aiohttp.ClientSession(timeout=timeout)
         return self
         
@@ -109,31 +109,78 @@ class ComfyUIManager:
             "client_id": self.client_id
         }
         
+        # 验证工作流有输出节点（SaveImage）
+        has_save_image = any(
+            node.get("class_type") == "SaveImage" 
+            for node in workflow.values() 
+            if isinstance(node, dict)
+        )
+        if not has_save_image:
+            logger.error("❌ 错误：工作流中没有SaveImage节点！")
+            logger.error(f"   工作流节点: {list(workflow.keys())}")
+            raise HTTPException(status_code=500, detail="工作流缺少输出节点（SaveImage）")
+        
+        # 确保工作流节点ID是字符串格式（ComfyUI要求）
+        normalized_workflow = {}
+        for node_id, node_data in workflow.items():
+            normalized_workflow[str(node_id)] = node_data
+        
+        data = {
+            "prompt": normalized_workflow,
+            "client_id": self.client_id
+        }
+        
+        logger.info(f"📡 提交工作流到ComfyUI: {url}")
+        logger.info(f"   工作流节点数: {len(normalized_workflow)}")
+        logger.info(f"   工作流节点ID: {list(normalized_workflow.keys())}")
+        logger.info(f"   ✅ 工作流包含SaveImage输出节点")
+        
         max_retries = 3
         for retry in range(max_retries):
             try:
                 async with self.session.post(url, json=data) as response:
                     if response.status == 200:
                         result = await response.json()
-                        return result["prompt_id"]
+                        prompt_id = result.get("prompt_id")
+                        logger.info(f"✅ ComfyUI工作流提交成功, prompt_id: {prompt_id}")
+                        return prompt_id
                     else:
                         error_text = await response.text()
-                        logger.warning(f"提交任务失败，状态码: {response.status}, 错误: {error_text}, 重试 {retry+1}/{max_retries}")
+                        logger.error(f"❌ 提交任务失败，状态码: {response.status}, 错误: {error_text}")
+                        
+                        # 如果是"no outputs"错误，记录工作流详情
+                        if "no outputs" in error_text.lower() or "prompt_no_outputs" in error_text:
+                            logger.error(f"❌ 工作流缺少输出节点！")
+                            logger.error(f"   工作流节点: {list(workflow.keys())}")
+                            # 检查SaveImage节点
+                            save_nodes = [k for k, v in workflow.items() if isinstance(v, dict) and v.get("class_type") == "SaveImage"]
+                            logger.error(f"   SaveImage节点: {save_nodes}")
+                            # 记录工作流结构（前500字符）
+                            workflow_str = json.dumps(workflow, indent=2, ensure_ascii=False)
+                            logger.error(f"   工作流内容（前1000字符）:\n{workflow_str[:1000]}")
+                        
                         if retry < max_retries - 1:
                             await asyncio.sleep(2)
                             continue
-                        raise HTTPException(status_code=500, detail=f"ComfyUI提交失败: {response.status}")
+                        raise HTTPException(status_code=500, detail=f"ComfyUI提交失败: {response.status}, {error_text[:500]}")
             except asyncio.TimeoutError:
-                logger.warning(f"提交任务超时，重试 {retry+1}/{max_retries}")
+                logger.warning(f"⏰ 提交任务超时，重试 {retry+1}/{max_retries}")
                 if retry < max_retries - 1:
                     await asyncio.sleep(2)
                     continue
                 raise HTTPException(status_code=500, detail="ComfyUI提交超时")
-            except Exception as e:
+            except aiohttp.ClientError as e:
+                logger.error(f"🔌 连接错误: {e}, 重试 {retry+1}/{max_retries}")
                 if retry < max_retries - 1:
-                    logger.warning(f"提交任务异常: {e}, 重试 {retry+1}/{max_retries}")
                     await asyncio.sleep(2)
                     continue
+                raise HTTPException(status_code=500, detail=f"ComfyUI连接失败: {str(e)}")
+            except Exception as e:
+                if retry < max_retries - 1:
+                    logger.warning(f"⚠️ 提交任务异常: {e}, 重试 {retry+1}/{max_retries}")
+                    await asyncio.sleep(2)
+                    continue
+                logger.error(f"❌ 提交任务最终失败: {e}")
                 raise
     
     async def get_history(self, prompt_id: str) -> Dict:
@@ -415,8 +462,66 @@ class TaskManager:
             self.websocket_connections.remove(ws)
     
     def get_task(self, task_id: str) -> Optional[TaskStatus]:
-        """获取任务状态"""
-        return self.active_tasks.get(task_id)
+        """获取任务状态（先从内存查找，找不到则从数据库查询）"""
+        # 先从内存中查找
+        if task_id in self.active_tasks:
+            return self.active_tasks[task_id]
+        
+        # 如果内存中没有，从数据库查询
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT task_id, status, progress, message, created_at, completed_at, 
+                   result_url, result_urls, error, request_data
+            FROM tasks
+            WHERE task_id = ?
+        ''', (task_id,))
+        
+        row = cursor.fetchone()
+        conn.close()
+        
+        if not row:
+            return None
+        
+        # 解析数据
+        task_id_db, status, progress, message, created_at, completed_at, result_url, result_urls_json, error, request_data_json = row
+        
+        # 解析result_urls JSON
+        result_urls = None
+        if result_urls_json:
+            try:
+                result_urls = json.loads(result_urls_json)
+            except json.JSONDecodeError:
+                logger.warning(f"无法解析任务 {task_id} 的result_urls JSON: {result_urls_json}")
+        
+        # 解析request_data JSON
+        request_data = None
+        if request_data_json:
+            try:
+                request_data = json.loads(request_data_json)
+            except json.JSONDecodeError:
+                logger.warning(f"无法解析任务 {task_id} 的request_data JSON: {request_data_json}")
+        
+        # 创建TaskStatus对象
+        task = TaskStatus(
+            task_id=task_id_db,
+            status=status,
+            progress=progress,
+            message=message or "",
+            created_at=created_at,
+            completed_at=completed_at,
+            result_url=result_url,
+            result_urls=result_urls,
+            error=error,
+            request_data=request_data
+        )
+        
+        # 将任务加载到内存中（如果状态是进行中）
+        if status in ["pending", "running", "generating"]:
+            self.active_tasks[task_id] = task
+        
+        return task
     
     def get_all_tasks(self) -> List[TaskStatus]:
         """获取所有任务"""
@@ -432,108 +537,177 @@ def create_workflow(request: GenerationRequest) -> Dict:
     else:
         return create_qwen_workflow(request, seed)
 
+def load_workflow_from_json(json_path: str) -> Optional[Dict]:
+    """从JSON文件加载工作流模板"""
+    try:
+        with open(json_path, 'r', encoding='utf-8') as f:
+            workflow = json.load(f)
+        logger.info(f"✅ 成功加载工作流模板: {json_path}")
+        return workflow
+    except FileNotFoundError:
+        logger.warning(f"⚠️ 工作流文件不存在: {json_path}，使用默认硬编码工作流")
+        return None
+    except json.JSONDecodeError as e:
+        logger.error(f"❌ JSON解析失败: {json_path}, 错误: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"❌ 加载工作流文件失败: {json_path}, 错误: {e}")
+        return None
+
 def create_qwen_text_to_image_workflow(request: GenerationRequest, seed: int) -> Dict:
-    """创建Qwen文生图工作流（基于新JSON配置）"""
-    workflow = {
-        "3": {
-            "inputs": {
-                "seed": seed,
-                "steps": request.steps,
-                "cfg": request.cfg,
-                "sampler_name": "euler_cfg_pp",
-                "scheduler": "sgm_uniform",
-                "denoise": 1,
-                "model": ["66", 0],
-                "positive": ["6", 0],
-                "negative": ["7", 0],
-                "latent_image": ["58", 0]
+    """创建Qwen文生图工作流（优先从JSON文件加载，失败则使用硬编码）"""
+    # 尝试从JSON文件加载工作流模板
+    json_path = Path("Qwen-Image 文生图（API）.json")
+    workflow = load_workflow_from_json(json_path)
+    
+    # 如果加载失败，使用硬编码的工作流
+    if workflow is None:
+        logger.info("使用硬编码的Qwen文生图工作流")
+        workflow = {
+            "3": {
+                "inputs": {
+                    "seed": seed,
+                    "steps": request.steps,
+                    "cfg": request.cfg,
+                    "sampler_name": "euler_cfg_pp",
+                    "scheduler": "sgm_uniform",
+                    "denoise": 1,
+                    "model": ["66", 0],
+                    "positive": ["6", 0],
+                    "negative": ["7", 0],
+                    "latent_image": ["58", 0]
+                },
+                "class_type": "KSampler",
+                "_meta": {"title": "K采样器"}
             },
-            "class_type": "KSampler",
-            "_meta": {"title": "K采样器"}
-        },
-        "6": {
-            "inputs": {
-                "text": request.prompt,
-                "clip": ["38", 0]
+            "6": {
+                "inputs": {
+                    "text": request.prompt,
+                    "clip": ["38", 0]
+                },
+                "class_type": "CLIPTextEncode",
+                "_meta": {"title": "CLIP Text Encode (Positive Prompt)"}
             },
-            "class_type": "CLIPTextEncode",
-            "_meta": {"title": "CLIP Text Encode (Positive Prompt)"}
-        },
-        "7": {
-            "inputs": {
-                "text": request.negative_prompt or "变形脸，奇怪五官，夸张动漫，大头，塑料皮肤，3D渲染，超现实主义皮肤，恐怖眼神，低质量，畸形，额外的手，额外的手指，奇怪光影，避免高饱和亮色，避免塑料感的鲜艳颜色",
-                "clip": ["38", 0]
+            "7": {
+                "inputs": {
+                    "text": request.negative_prompt or "变形脸，奇怪五官，夸张动漫，大头，塑料皮肤，3D渲染，超现实主义皮肤，恐怖眼神，低质量，畸形，额外的手，额外的手指，奇怪光影，避免高饱和亮色，避免塑料感的鲜艳颜色",
+                    "clip": ["38", 0]
+                },
+                "class_type": "CLIPTextEncode",
+                "_meta": {"title": "CLIP Text Encode (Negative Prompt)"}
             },
-            "class_type": "CLIPTextEncode",
-            "_meta": {"title": "CLIP Text Encode (Negative Prompt)"}
-        },
-        "8": {
-            "inputs": {
-                "samples": ["3", 0],
-                "vae": ["39", 0]
+            "8": {
+                "inputs": {
+                    "samples": ["3", 0],
+                    "vae": ["39", 0]
+                },
+                "class_type": "VAEDecode",
+                "_meta": {"title": "VAE解码"}
             },
-            "class_type": "VAEDecode",
-            "_meta": {"title": "VAE解码"}
-        },
-        "37": {
-            "inputs": {
-                "unet_name": "Qwen-Image_ComfyUI/qwen_image_bf16.safetensors",
-                "weight_dtype": "default"
+            "37": {
+                "inputs": {
+                    "unet_name": "Qwen-Image_ComfyUI/qwen_image_bf16.safetensors",
+                    "weight_dtype": "default"
+                },
+                "class_type": "UNETLoader",
+                "_meta": {"title": "UNet加载器"}
             },
-            "class_type": "UNETLoader",
-            "_meta": {"title": "UNet加载器"}
-        },
-        "38": {
-            "inputs": {
-                "clip_name": "qwen_2.5_vl_7b_fp8_scaled.safetensors",
-                "type": "qwen_image",
-                "device": "default"
+            "38": {
+                "inputs": {
+                    "clip_name": "qwen_2.5_vl_7b_fp8_scaled.safetensors",
+                    "type": "qwen_image",
+                    "device": "default"
+                },
+                "class_type": "CLIPLoader",
+                "_meta": {"title": "加载CLIP"}
             },
-            "class_type": "CLIPLoader",
-            "_meta": {"title": "加载CLIP"}
-        },
-        "39": {
-            "inputs": {
-                "vae_name": "qwen_image_vae.safetensors"
+            "39": {
+                "inputs": {
+                    "vae_name": "qwen_image_vae.safetensors"
+                },
+                "class_type": "VAELoader",
+                "_meta": {"title": "加载VAE"}
             },
-            "class_type": "VAELoader",
-            "_meta": {"title": "加载VAE"}
-        },
-        "58": {
-            "inputs": {
-                "width": request.width,
-                "height": request.height,
-                "batch_size": request.batch_size
+            "58": {
+                "inputs": {
+                    "width": request.width,
+                    "height": request.height,
+                    "batch_size": request.batch_size
+                },
+                "class_type": "EmptySD3LatentImage",
+                "_meta": {"title": "空Latent图像（SD3）"}
             },
-            "class_type": "EmptySD3LatentImage",
-            "_meta": {"title": "空Latent图像（SD3）"}
-        },
-        "60": {
-            "inputs": {
-                "filename_prefix": "ComfyUI",
-                "images": ["8", 0]
+            "60": {
+                "inputs": {
+                    "filename_prefix": "ComfyUI",
+                    "images": ["8", 0]
+                },
+                "class_type": "SaveImage",
+                "_meta": {"title": "保存图像"}
             },
-            "class_type": "SaveImage",
-            "_meta": {"title": "保存图像"}
-        },
-        "66": {
-            "inputs": {
-                "shift": 3,
-                "model": ["73", 0]
+            "66": {
+                "inputs": {
+                    "shift": 3,
+                    "model": ["73", 0]
+                },
+                "class_type": "ModelSamplingAuraFlow",
+                "_meta": {"title": "采样算法（AuraFlow）"}
             },
-            "class_type": "ModelSamplingAuraFlow",
-            "_meta": {"title": "采样算法（AuraFlow）"}
-        },
-        "73": {
-            "inputs": {
-                "lora_name": "Qwen-Image-Lightning/Qwen-Image-Lightning-8steps-V1.0.safetensors",
-                "strength_model": 1,
-                "model": ["37", 0]
-            },
-            "class_type": "LoraLoaderModelOnly",
-            "_meta": {"title": "LoRA加载器（仅模型）"}
+            "73": {
+                "inputs": {
+                    "lora_name": "Qwen-Image-Lightning/Qwen-Image-Lightning-8steps-V1.0.safetensors",
+                    "strength_model": 1,
+                    "model": ["37", 0]
+                },
+                "class_type": "LoraLoaderModelOnly",
+                "_meta": {"title": "LoRA加载器（仅模型）"}
+            }
         }
-    }
+    
+    # 更新工作流中的动态参数
+    # 更新K采样器参数（节点3）
+    if "3" in workflow and "inputs" in workflow["3"]:
+        workflow["3"]["inputs"]["seed"] = seed
+        workflow["3"]["inputs"]["steps"] = request.steps
+        workflow["3"]["inputs"]["cfg"] = request.cfg
+    
+    # 更新正提示词（节点6）
+    if "6" in workflow and "inputs" in workflow["6"]:
+        workflow["6"]["inputs"]["text"] = request.prompt
+    
+    # 更新负提示词（节点7）
+    if "7" in workflow and "inputs" in workflow["7"]:
+        workflow["7"]["inputs"]["text"] = request.negative_prompt or "变形脸，奇怪五官，夸张动漫，大头，塑料皮肤，3D渲染，超现实主义皮肤，恐怖眼神，低质量，畸形，额外的手，额外的手指，奇怪光影，避免高饱和亮色，避免塑料感的鲜艳颜色"
+    
+    # 更新图像尺寸和批次大小（节点58）
+    if "58" in workflow and "inputs" in workflow["58"]:
+        workflow["58"]["inputs"]["width"] = request.width
+        workflow["58"]["inputs"]["height"] = request.height
+        workflow["58"]["inputs"]["batch_size"] = request.batch_size
+    
+    # 验证工作流有输出节点（SaveImage）
+    has_output = False
+    for node_id, node_data in workflow.items():
+        if isinstance(node_data, dict) and node_data.get("class_type") == "SaveImage":
+            has_output = True
+            logger.debug(f"✅ 找到输出节点: {node_id} (SaveImage)")
+            break
+    
+    if not has_output:
+        logger.error("❌ 警告：工作流中没有找到SaveImage输出节点！")
+        # 确保节点60存在
+        if "60" not in workflow:
+            logger.error("❌ 节点60 (SaveImage) 不存在，添加默认输出节点")
+            workflow["60"] = {
+                "inputs": {
+                    "filename_prefix": "ComfyUI",
+                    "images": ["8", 0]
+                },
+                "class_type": "SaveImage",
+                "_meta": {"title": "保存图像"}
+            }
+    
+    logger.info(f"✅ Qwen文生图工作流已创建: seed={seed}, steps={request.steps}, cfg={request.cfg}, size={request.width}x{request.height}, batch={request.batch_size}, 节点数={len(workflow)}")
     return workflow
 
 def create_flux_workflow(request: GenerationRequest, seed: int) -> Dict:
@@ -831,8 +1005,19 @@ async def process_single_task(task_id: str, request: GenerationRequest, task_man
         async with ComfyUIManager() as comfy:
             task_manager.update_task(task_id, progress=25, message="提交任务到ComfyUI...")
             
+            # 调试日志：记录工作流信息
+            logger.info(f"📤 任务 {task_id} - 准备提交工作流到ComfyUI")
+            logger.debug(f"   工作流节点数: {len(workflow)}")
+            logger.debug(f"   工作流节点: {list(workflow.keys())[:5]}...")
+            
             # 提交任务
-            prompt_id = await comfy.submit_prompt(workflow)
+            try:
+                prompt_id = await comfy.submit_prompt(workflow)
+                logger.info(f"✅ 任务 {task_id} - 工作流已提交到ComfyUI, prompt_id: {prompt_id}")
+            except Exception as e:
+                logger.error(f"❌ 任务 {task_id} - 提交工作流失败: {e}")
+                logger.error(f"   工作流内容: {json.dumps(workflow, indent=2)[:500]}...")
+                raise
             
             task_manager.update_task(task_id, progress=35, message="等待ComfyUI处理...")
             
@@ -1084,18 +1269,48 @@ async def websocket_endpoint(websocket: WebSocket):
 @app.get("/health")
 async def health_check():
     """健康检查"""
+    comfyui_status = "offline"
+    comfyui_error = None
+    
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.get(f"{COMFYUI_SERVER}/system_stats", timeout=5) as response:
-                comfyui_status = "online" if response.status == 200 else "offline"
-    except:
+            try:
+                async with session.get(f"{COMFYUI_SERVER}/system_stats", timeout=aiohttp.ClientTimeout(total=10, connect=5)) as response:
+                    if response.status == 200:
+                        comfyui_status = "online"
+                        # 尝试解析响应以确认服务器正常
+                        try:
+                            data = await response.json()
+                            logger.debug(f"ComfyUI健康检查成功: {data.get('system', {}).get('comfyui_version', 'unknown')}")
+                        except:
+                            pass
+                    else:
+                        comfyui_status = "offline"
+                        comfyui_error = f"HTTP {response.status}"
+            except asyncio.TimeoutError:
+                comfyui_status = "offline"
+                comfyui_error = "连接超时（5秒）"
+            except aiohttp.ClientConnectorError as e:
+                comfyui_status = "offline"
+                comfyui_error = f"连接失败: {str(e)}"
+            except Exception as e:
+                comfyui_status = "offline"
+                comfyui_error = f"错误: {str(e)}"
+    except Exception as e:
         comfyui_status = "offline"
+        comfyui_error = f"异常: {str(e)}"
     
-    return {
+    result = {
         "api_server": "online",
         "comfyui_server": comfyui_status,
+        "comfyui_url": COMFYUI_SERVER,
         "active_tasks": len(task_manager.active_tasks)
     }
+    
+    if comfyui_error:
+        result["comfyui_error"] = comfyui_error
+    
+    return result
 
 if __name__ == "__main__":
     import uvicorn

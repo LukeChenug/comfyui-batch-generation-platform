@@ -305,8 +305,8 @@ git config --global --unset https.proxy
 **检查1：ComfyUI服务器地址配置**
 - 编辑 `comfyui_api_server.py`，检查以下配置：
   ```python
-  COMFYUI_SERVER = "http://117.50.172.15:8188"  # 修改为你的ComfyUI服务器地址
-  COMFYUI_WS = "ws://117.50.172.15:8188/ws"
+  COMFYUI_SERVER = "http://106.75.213.77:8188"  # 修改为你的ComfyUI服务器地址
+  COMFYUI_WS = "ws://106.75.213.77:8188/ws"
   ```
 
 **检查2：网络连通性**
