@@ -1,0 +1,85 @@
+{
+  "id": "85cf1bce-f921-48d2-8dad-87e9f0217d3c",
+  "workflow_version_id": "17233c70-dd64-4232-a65c-2fe97a987ccd",
+  "workflow_inputs": {
+    "input_text": "Create an editorial photoreal 3¡Á3 storyboard contact sheet for a high end beauty e commerce ad featuring only the following products: {{product_main}} and {{product_secondary}}\n\nBackground {{background}}.  \nLighting  {{lighting}}.  \n\ngenerate as one evenly spaced 3¡Á3 grid.  "
+  },
+  "workflow_id": "c0a77ef9-f1c6-420a-b5f0-18a494cd21d0",
+  "machine_id": "8dcc0b5a-8f0b-4dd5-b6aa-f9d6b73d0077",
+  "origin": "api",
+  "status": "success",
+  "ended_at": "2025-12-01T16:11:39.075000Z",
+  "created_at": "2025-12-01T16:10:02.742000Z",
+  "updated_at": "2025-12-01T16:11:39.075000Z",
+  "queued_at": "2025-12-01T16:10:10.275000Z",
+  "started_at": "2025-12-01T16:10:28.565000Z",
+  "gpu_event_id": "8bc98f0b-8b60-4c8f-8f24-9dd20ee18d60",
+  "gpu": "A10G",
+  "machine_version": null,
+  "machine_type": "comfy-deploy-serverless",
+  "modal_function_call_id": "fc-01KBDAV8SSQX2472H9F1843GC4",
+  "user_id": "user_3639RYl1m7pTNKZ7DGUU3QZiiTW",
+  "org_id": "org_3639VFWa3P5NzFsH16nfbZKoxqE",
+  "live_status": "Executing ComfyDeployOutputImage",
+  "progress": 1.0,
+  "is_realtime": false,
+  "webhook": null,
+  "webhook_status": null,
+  "webhook_intermediate_status": false,
+  "outputs": [
+    {
+      "id": "4ab44d25-c53c-4c45-a878-336740c438a0",
+      "output_id": null,
+      "run_id": "85cf1bce-f921-48d2-8dad-87e9f0217d3c",
+      "data": {
+        "images": [
+          {
+            "url": "https://comfy-deploy-output.s3.us-east-2.amazonaws.com/outputs/runs/85cf1bce-f921-48d2-8dad-87e9f0217d3c/ComfyUI_00001_.png",
+            "type": "output",
+            "filename": "ComfyUI_00001_.png",
+            "is_public": true,
+            "subfolder": "",
+            "upload_duration": 0.7244018949999997
+          }
+        ]
+      },
+      "node_meta": {
+        "node_id": "60"
+      },
+      "created_at": "2025-12-01T16:11:38.696000Z",
+      "updated_at": "2025-12-01T16:11:38.696000Z",
+      "type": null,
+      "node_id": null
+    },
+    {
+      "id": "ddc9a16e-d805-4bb0-ae8a-aa9352c4ac58",
+      "output_id": "output_images",
+      "run_id": "85cf1bce-f921-48d2-8dad-87e9f0217d3c",
+      "data": {
+        "images": [
+          {
+            "url": "https://comfy-deploy-output.s3.us-east-2.amazonaws.com/outputs/runs/85cf1bce-f921-48d2-8dad-87e9f0217d3c/ComfyUI_00002_.png",
+            "type": "output",
+            "filename": "ComfyUI_00002_.png",
+            "is_public": true,
+            "subfolder": "",
+            "upload_duration": 0.4025475520000015
+          }
+        ]
+      },
+      "node_meta": {
+        "node_id": "90"
+      },
+      "created_at": "2025-12-01T16:11:38.282000Z",
+      "updated_at": "2025-12-01T16:11:38.282000Z",
+      "type": null,
+      "node_id": null
+    }
+  ],
+  "number": 0,
+  "duration": 96.332405,
+  "cold_start_duration": 18.290199,
+  "cold_start_duration_total": 25.822256,
+  "run_duration": 70.510149,
+  "queue_position": null
+}

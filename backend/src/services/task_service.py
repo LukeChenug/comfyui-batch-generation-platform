@@ -12,10 +12,6 @@ from fastapi import WebSocket
 
 from backend.src.database import db
 from backend.src.types import GenerationRequest, TaskStatusModel
-from backend.src.adapters.comfyui.adapter import ComfyUIAdapter
-from backend.src.adapters.comfy_deploy.adapter import ComfyDeployAdapter
-from backend.src.adapters.storage import get_storage_adapter
-from backend.src.services.workflow_service import WorkflowService
 from backend.src.config.settings import OUTPUT_DIR, USE_COMFY_DEPLOY
 
 logger = logging.getLogger(__name__)
@@ -56,13 +52,14 @@ class TaskService:
                 self.websocket_connections.remove(ws)
 
     # ... existing create/get task methods ...
-    def create_task(self, request_data: Dict, batch_name: Optional[str] = None) -> str:
+    def create_task(self, request_data: Dict, batch_name: Optional[str] = None, user_id: Optional[str] = None) -> str:
         task_id = str(uuid.uuid4())
         now = datetime.now().isoformat()
         task_data = {
             "task_id": task_id, "status": "pending", "progress": 0,
             "message": "任务已创建", "created_at": now,
-            "request_data": request_data, "batch_name": batch_name
+            "request_data": request_data, "batch_name": batch_name,
+            "user_id": user_id
         }
         db.save_task(task_data)
         return task_id
@@ -70,8 +67,11 @@ class TaskService:
     def get_task(self, task_id: str) -> Optional[Dict]:
         return db.get_task(task_id)
 
+    def get_user_tasks(self, user_id: str) -> List[Dict]:
+        return db.get_tasks_by_user(user_id)
+
     def get_all_tasks(self) -> List[Dict]:
-        return db.get_recent_tasks()
+        return db.get_all_tasks_admin()
 
     # ... process task ...
     async def process_task(self, task_id: str, request: GenerationRequest):
@@ -86,6 +86,9 @@ class TaskService:
             self._update_task(task_id, status="failed", error=str(e))
 
     async def _process_with_deploy(self, task_id: str, request: GenerationRequest):
+        from backend.src.adapters.comfy_deploy.adapter import ComfyDeployAdapter
+        from backend.src.adapters.storage import get_storage_adapter
+
         deploy = ComfyDeployAdapter()
         self._update_task(task_id, progress=10, message="提交到 ComfyDeploy...")
         
@@ -240,6 +243,9 @@ class TaskService:
     # ... (keep _process_with_local and other methods as is) ...
     async def _process_with_local(self, task_id: str, request: GenerationRequest):
         """使用本地/自建 ComfyUI 处理任务 (原逻辑)"""
+        from backend.src.adapters.comfyui.adapter import ComfyUIAdapter
+        from backend.src.services.workflow_service import WorkflowService
+
         # 1. 处理图片上传 (如果是图生图)
         if request.input_image:
             await self._handle_image_upload(task_id, request)
@@ -266,6 +272,8 @@ class TaskService:
 
     async def _handle_image_upload(self, task_id: str, request: GenerationRequest):
         """处理输入图片上传"""
+        from backend.src.adapters.comfyui.adapter import ComfyUIAdapter
+
         self._update_task(task_id, progress=10, message="上传图片到ComfyUI...")
         
         local_image_path = Path("./uploaded_images") / request.input_image
@@ -281,7 +289,7 @@ class TaskService:
             # 更新request中的图片名称为ComfyUI中的名称
             request.input_image = comfyui_image_name
 
-    async def _poll_status(self, task_id: str, prompt_id: str, comfy: ComfyUIAdapter, request: GenerationRequest):
+    async def _poll_status(self, task_id: str, prompt_id: str, comfy, request: GenerationRequest):
         """轮询任务状态"""
         logger.info(f"⏳ 开始轮询任务 {task_id} (prompt_id: {prompt_id})")
         max_attempts = 300 # 10分钟
@@ -305,8 +313,10 @@ class TaskService:
         logger.error(f"❌ 任务 {task_id} 轮询超时")
         self._update_task(task_id, status="failed", error="任务超时")
 
-    async def _handle_completion(self, task_id: str, history_data: Dict, comfy: ComfyUIAdapter, request: GenerationRequest):
+    async def _handle_completion(self, task_id: str, history_data: Dict, comfy, request: GenerationRequest):
         """处理任务完成，下载图片"""
+        from backend.src.adapters.storage import get_storage_adapter
+        
         outputs = history_data.get("outputs", {})
         images = []
         

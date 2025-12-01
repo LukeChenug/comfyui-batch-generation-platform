@@ -13,8 +13,9 @@ COMFY_DEPLOY_API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoidXN
 COMFY_DEPLOY_DEPLOYMENT_ID = "f6cd9d42-eee8-4aa8-86cb-fa7ece757cfd"
 COMFY_DEPLOY_HOST = "https://api.comfydeploy.com"
 
-print(f"🔍 配置检查: USE_COMFY_DEPLOY={USE_COMFY_DEPLOY}")
-print(f"🔍 配置检查: DEPLOYMENT_ID={COMFY_DEPLOY_DEPLOYMENT_ID}")
+# 配置检查日志（移除emoji以兼容Windows GBK编码）
+# print(f"配置检查: USE_COMFY_DEPLOY={USE_COMFY_DEPLOY}")
+# print(f"配置检查: DEPLOYMENT_ID={COMFY_DEPLOY_DEPLOYMENT_ID}")
 
 # 存储配置
 # ... existing code ...

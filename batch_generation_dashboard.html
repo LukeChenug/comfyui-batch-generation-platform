@@ -2371,14 +2371,86 @@
             color: #666666;
         }
         
-        [data-theme="light"] .theme-toggle:hover {
+        [data-theme="light"]         .theme-toggle:hover {
             background: rgba(0, 0, 0, 0.05);
             border-color: #5F8D87;
             color: #5F8D87;
         }
+
+        /* 登录弹窗 */
+        .login-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000000;
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .login-box {
+            background: #1a1a1a;
+            padding: 40px;
+            border-radius: 12px;
+            border: 1px solid #333;
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+
+        .login-title {
+            font-family: 'Sora', sans-serif;
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 30px;
+            color: #fff;
+        }
+
+        .login-input {
+            width: 100%;
+            padding: 15px;
+            background: #000;
+            border: 1px solid #333;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 16px;
+            margin-bottom: 20px;
+            font-family: monospace;
+        }
+
+        .login-btn {
+            width: 100%;
+            padding: 15px;
+            background: #5F8D87;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .login-btn:hover {
+            background: #4D7A74;
+        }
     </style>
 </head>
 <body>
+    <!-- 登录弹窗 -->
+    <div id="loginModal" class="login-modal" style="display: none;">
+        <div class="login-box">
+            <h2 class="login-title">HOJO AI</h2>
+            <p style="color: #888; margin-bottom: 20px; font-size: 14px;">请输入您的访问密钥 (API Key)</p>
+            <input type="text" id="apiKeyInput" class="login-input" placeholder="sk-..." autocomplete="off">
+            <button onclick="authManager.login()" class="login-btn">进入系统</button>
+            <p id="loginError" style="color: #ff4444; margin-top: 15px; font-size: 13px; display: none;"></p>
+        </div>
+    </div>
+
     <!-- 图片右键菜单 -->
     <div id="imageContextMenu" class="image-context-menu"></div>
 
@@ -2409,7 +2481,7 @@
                     <div class="form-section">
                         <div class="form-group">
                             <label>API服务器地址</label>
-                        <input type="text" id="apiServer" value="http://localhost:8001" placeholder="http://localhost:8001">
+                        <input type="text" id="apiServer" value="http://localhost:8088" placeholder="http://localhost:8001">
                         <small style="color: #888; font-size: 12px; display: block; margin-top: 5px;">
                             💡 这是我们的API服务器地址（FastAPI），用于连接后端服务
                         </small>
@@ -2677,9 +2749,214 @@
     </div>
 
     <script>
+        // ================= 用户认证管理 =================
+        class AuthManager {
+            constructor() {
+                this.apiKey = localStorage.getItem('hojo_api_key');
+                this.currentUser = null;
+                this.modal = document.getElementById('loginModal');
+                this.input = document.getElementById('apiKeyInput');
+                this.errorMsg = document.getElementById('loginError');
+                
+                // 绑定回车登录
+                if(this.input) {
+                    this.input.addEventListener('keypress', (e) => {
+                        if (e.key === 'Enter') this.login();
+                    });
+                }
+            }
+
+            async init() {
+                // 如果没有 Key，显示登录框
+                if (!this.apiKey) {
+                    this.showLogin();
+                    return false;
+                }
+                
+                // 如果有 Key，验证它
+                const isValid = await this.verifyToken();
+                if (isValid) {
+                    this.hideLogin(); // 验证通过，隐藏登录框
+                } else {
+                    this.showLogin(); // 验证失败，显示登录框
+                }
+                return isValid;
+            }
+
+            showLogin() {
+                if(this.modal) this.modal.style.display = 'flex';
+            }
+
+            hideLogin() {
+                if(this.modal) this.modal.style.display = 'none';
+            }
+
+            async login() {
+                const key = this.input.value.trim();
+                if (!key) {
+                    this.showError('请输入 API Key');
+                    return;
+                }
+                
+                // 显示加载状态
+                const btn = this.modal.querySelector('button');
+                const originalText = btn.textContent;
+                btn.textContent = '验证中...';
+                btn.disabled = true;
+                this.showError(''); // 清除旧错误
+
+                this.apiKey = key;
+                if (await this.verifyToken()) {
+                    localStorage.setItem('hojo_api_key', key);
+                    this.hideLogin();
+                    
+                    // 🎯 核心优化：不刷新页面，直接初始化
+                    console.log('🔄 登录成功，初始化系统...');
+                    if (window.manager) {
+                        window.manager.loadTasksFromLocalStorage();
+                        window.manager.updateTaskList();
+                        window.manager.startConnectionMonitor();
+                    } else {
+                        location.reload();
+                    }
+                } else {
+                    this.showError('验证失败：无效的 Key 或连接超时');
+                    // 保持输入框内容，不清除
+                    this.apiKey = null;
+                }
+                
+                // 恢复按钮
+                btn.textContent = originalText;
+                btn.disabled = false;
+            }
+
+            showError(msg) {
+                if(this.errorMsg) {
+                    this.errorMsg.textContent = msg;
+                    this.errorMsg.style.display = 'block';
+                }
+            }
+
+            async verifyToken() {
+                try {
+                    // 获取API地址，优先使用 input 的值，其次是默认值
+                    const apiServerInput = document.getElementById('apiServer');
+                    const apiServer = apiServerInput ? apiServerInput.value : 'http://localhost:8088';
+                    
+                    console.log(`🔐 正在验证 Token... 目标 API: ${apiServer}/me`);
+                    
+                    const response = await fetch(`${apiServer}/me`, {
+                        headers: {
+                            'Authorization': `Bearer ${this.apiKey}`
+                        }
+                    });
+
+                    if (response.ok) {
+                        this.currentUser = await response.json();
+                        console.log('✅ 认证成功:', this.currentUser.username);
+                        this.updateUI();
+                        return true;
+                    } else {
+                        console.warn('❌ 认证失败 HTTP:', response.status);
+                        if (response.status === 401) {
+                            localStorage.removeItem('hojo_api_key');
+                            // 不要在这里调用 showLogin，因为可能本来就在登录中
+                        }
+                        return false;
+                    }
+                } catch (e) {
+                    console.error('验证连接异常:', e);
+                    return false; 
+                }
+            }
+
+            updateUI() {
+                // 在Header显示用户名
+                const header = document.querySelector('.header h1');
+                if (header && this.currentUser) {
+                    // 检查是否已存在
+                    const existBadge = document.getElementById('userBadge');
+                    if (existBadge) existBadge.remove();
+
+                    // 创建容器
+                    const userContainer = document.createElement('div');
+                    userContainer.id = 'userBadge';
+                    userContainer.style.display = 'inline-flex';
+                    userContainer.style.alignItems = 'center';
+                    userContainer.style.marginLeft = '15px';
+                    userContainer.style.gap = '8px';
+
+                    // 用户名
+                    const userName = document.createElement('span');
+                    userName.style.fontSize = '12px';
+                    userName.style.background = 'rgba(255, 255, 255, 0.1)';
+                    userName.style.border = '1px solid #333';
+                    userName.style.padding = '4px 10px';
+                    userName.style.borderRadius = '12px';
+                    userName.style.color = '#80A5A0';
+                    userName.textContent = `👤 ${this.currentUser.username}`;
+                    
+                    // 退出按钮
+                    const logoutBtn = document.createElement('span');
+                    logoutBtn.innerHTML = '🚪';
+                    logoutBtn.title = '退出登录';
+                    logoutBtn.style.cursor = 'pointer';
+                    logoutBtn.style.fontSize = '14px';
+                    logoutBtn.style.opacity = '0.7';
+                    logoutBtn.style.transition = 'opacity 0.2s';
+                    logoutBtn.onmouseover = () => logoutBtn.style.opacity = '1';
+                    logoutBtn.onmouseout = () => logoutBtn.style.opacity = '0.7';
+                    logoutBtn.onclick = () => this.logout();
+
+                    userContainer.appendChild(userName);
+                    userContainer.appendChild(logoutBtn);
+                    header.appendChild(userContainer);
+                }
+            }
+
+            logout() {
+                if (confirm('确定要退出登录吗？')) {
+                    localStorage.removeItem('hojo_api_key');
+                    this.apiKey = null;
+                    this.currentUser = null;
+                    // 移除UI
+                    const existBadge = document.getElementById('userBadge');
+                    if (existBadge) existBadge.remove();
+                    
+                    // 显示登录框并刷新页面以重置状态
+                    this.showLogin();
+                    location.reload();
+                }
+            }
+
+            // 封装 Fetch 请求
+            async fetch(url, options = {}) {
+                // 确保 Headers 存在
+                if (!options.headers) options.headers = {};
+                
+                // 注入 Auth Token
+                if (this.apiKey) {
+                    options.headers['Authorization'] = `Bearer ${this.apiKey}`;
+                }
+
+                const response = await fetch(url, options);
+
+                // 处理 401 (Token 过期/无效)
+                if (response.status === 401) {
+                    localStorage.removeItem('hojo_api_key');
+                    this.showLogin();
+                    throw new Error('Unauthorized');
+                }
+
+                return response;
+            }
+        }
+
+        const authManager = new AuthManager();
+
         class BatchGenerationManager {
             constructor() {
-                this.apiServer = 'http://127.0.0.1:8001'; // 默认使用IPv4，避免localhost解析问题
+                this.apiServer = 'http://127.0.0.1:8088'; // 默认使用IPv4，避免localhost解析问题
                 this.ws = null;
                 this.tasks = {};
                 this.refreshInterval = null;
@@ -2770,6 +3047,12 @@
 
 
             async init() {
+                // 等待用户认证
+                if (!await authManager.init()) {
+                    console.log('等待用户登录...');
+                    return;
+                }
+
                 console.log('🚀 [INIT] 开始初始化...');
                 
                 // 🚀 启动时强制初始化 UI 状态
@@ -2936,7 +3219,7 @@
                     const controller = new AbortController();
                     const timeoutId = setTimeout(() => controller.abort(), 5000);
                     
-                    const response = await fetch(`${this.apiServer}/health`, {
+                    const response = await authManager.fetch(`${this.apiServer}/health`, {
                         method: 'GET',
                         headers: {
                             'Content-Type': 'application/json',
@@ -3096,7 +3379,7 @@
                 }
 
                 try {
-                    const response = await fetch(url, options);
+                    const response = await authManager.fetch(url, options);
                     if (!response.ok) {
                         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                     }
@@ -3446,7 +3729,7 @@
                             formData.append('file', imageFile);
                             
                             try {
-                                const uploadResult = await fetch(`${this.apiServer}/upload_image`, {
+                                const uploadResult = await authManager.fetch(`${this.apiServer}/upload_image`, {
                                     method: 'POST',
                                     body: formData
                                 });
@@ -3478,7 +3761,7 @@
                                 try {
                                     const formData2 = new FormData();
                                     formData2.append('file', inputImage2);
-                                    const uploadResult2 = await fetch(`${this.apiServer}/upload_image`, {
+                                    const uploadResult2 = await authManager.fetch(`${this.apiServer}/upload_image`, {
                                         method: 'POST',
                                         body: formData2
                                     });
@@ -3495,7 +3778,7 @@
                                 try {
                                     const formData3 = new FormData();
                                     formData3.append('file', inputImage3);
-                                    const uploadResult3 = await fetch(`${this.apiServer}/upload_image`, {
+                                    const uploadResult3 = await authManager.fetch(`${this.apiServer}/upload_image`, {
                                         method: 'POST',
                                         body: formData3
                                     });
@@ -3572,7 +3855,7 @@
                         const controller = new AbortController();
                         const timeoutId = setTimeout(() => controller.abort(), 5000);
                         
-                        const response = await fetch(`${this.apiServer}/status/${taskId}`, {
+                        const response = await authManager.fetch(`${this.apiServer}/status/${taskId}`, {
                             signal: controller.signal
                         });
                         clearTimeout(timeoutId);

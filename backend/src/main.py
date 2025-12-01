@@ -10,6 +10,7 @@ from backend.src.config.settings import OUTPUT_DIR
 from backend.src.database.db import init_database
 from backend.src.routes import task_routes
 from backend.src.adapters.comfyui.adapter import ComfyUIAdapter
+from backend.src.init_admin import init_admin_account
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -39,8 +40,13 @@ app.include_router(task_routes.router)
 @app.on_event("startup")
 async def startup_event():
     logger.info("🚀 启动服务...")
-    init_database()
-    logger.info("✅ 数据库初始化完成")
+    try:
+        init_database()
+        logger.info("✅ 数据库初始化完成")
+        init_admin_account() 
+        logger.info("✅ 管理员账号检查完成")
+    except Exception as e:
+        logger.error(f"❌ 初始化失败: {e}")
 
 @app.get("/health")
 async def health_check():
@@ -79,6 +85,6 @@ if __name__ == "__main__":
     uvicorn.run(
         "backend.src.main:app", 
         host="0.0.0.0", 
-        port=8001, 
-        reload=True
+        port=8088, 
+        reload=False
     )
