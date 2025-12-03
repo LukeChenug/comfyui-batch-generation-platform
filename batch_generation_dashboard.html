@@ -328,10 +328,14 @@
             overflow: visible !important;
         }
         
-        /* 隐藏右侧面板滚动条 */
-        .panel:last-child::-webkit-scrollbar {
-            display: none; /* Chrome, Safari, Edge */
+        // 移除右侧面板的滚动条样式，交给CSS控制
+        /* 
+        .panel::-webkit-scrollbar {
+            width: 6px;
         }
+        
+        ... (其他滚动条样式保留在CSS中)
+        */
 
         .panel h2 {
             color: #F9FBFC;
@@ -703,23 +707,8 @@
             transform: rotate(-90deg);
         }
 
-        .stats-container {
-            overflow: hidden;
-            transition: max-height 0.3s ease, opacity 0.2s ease, margin-bottom 0.3s ease;
-            max-height: 300px;
-            opacity: 1;
-            margin-bottom: 15px;
-        }
-
-        .stats-container.collapsed {
-            max-height: 0;
-            opacity: 0;
-            margin-bottom: 0;
-        }
-
-        .stats-grid {
-            transition: transform 0.3s ease;
-        }
+        /* 移除 ComfyUI 和 API 状态卡的CSS */
+        /* .stats-container { ... } 等样式暂时保留以防影响其他布局，但在HTML中不再使用 */
 
         .btn-secondary {
             color: #b0bec5;
@@ -2956,7 +2945,7 @@
 
         class BatchGenerationManager {
             constructor() {
-                this.apiServer = 'http://127.0.0.1:8088'; // 默认使用IPv4，避免localhost解析问题
+                this.apiServer = window.location.origin; // 自动使用当前域名
                 this.ws = null;
                 this.tasks = {};
                 this.refreshInterval = null;
@@ -5823,18 +5812,18 @@
                 return;
             }
             try {
-                manager.apiServer = document.getElementById('apiServer').value;
-                manager.submitSingle();
-            } catch (error) {
-                console.error('submitSingle 执行错误:', error);
-                alert('提交失败: ' + error.message);
-            }
+                // 移除对 apiServer input 的依赖
+                // manager.apiServer = document.getElementById('apiServer').value;
+            manager.submitSingle();
+        } catch (error) {
+            console.error('submitSingle 执行错误:', error);
+            alert('提交失败: ' + error.message);
         }
+    }
 
-        function refreshTasks() {
-            manager.apiServer = document.getElementById('apiServer').value;
-            manager.refreshTasks();
-        }
+    function refreshTasks() {
+        manager.refreshTasks();
+    }
 
         function clearCompleted() {
             manager.clearCompleted();
