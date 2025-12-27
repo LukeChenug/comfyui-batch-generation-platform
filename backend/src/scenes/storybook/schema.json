@@ -1,0 +1,54 @@
+{
+  "id": "storybook",
+  "version": "1.0.0",
+  "meta": {
+    "title": "绘本插图 (Storybook)",
+    "description": "稳定一致的儿童绘本风格，适合连续画面生成。",
+    "engine": "comfyui"
+  },
+  "ui_schema": {
+    "type": "object",
+    "properties": {
+      "prompt": {
+        "type": "string",
+        "title": "画面描述",
+        "description": "描述你想要生成的画面内容",
+        "minLength": 1
+      },
+      "negative_prompt": {
+        "type": "string",
+        "title": "负向描述",
+        "description": "你不希望出现的内容",
+        "default": "text, watermark, ugly, deformed, noisy, blurry, distortion"
+      },
+      "aspect_ratio": {
+        "type": "string",
+        "title": "画幅比例",
+        "enum": ["1:1", "4:3", "3:4", "16:9"],
+        "default": "1:1"
+      },
+      "batch_size": {
+        "type": "integer",
+        "title": "生成数量",
+        "minimum": 1,
+        "maximum": 4,
+        "default": 1
+      }
+    },
+    "required": ["prompt"]
+  },
+  "mapping": {
+    "simple": {
+      "prompt": ["6", "inputs", "text"],
+      "negative_prompt": ["7", "inputs", "text"],
+      "seed": ["3", "inputs", "seed"],
+      "batch_size": ["58", "inputs", "batch_size"]
+    },
+    "complex": {
+      "aspect_ratio": {
+        "target": ["58", "inputs"],
+        "converter": "aspect_ratio_to_dims_sd3"
+      }
+    }
+  }
+}

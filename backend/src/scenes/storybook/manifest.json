@@ -1,0 +1,38 @@
+{
+  "dependencies": {
+    "models": [
+      {
+        "type": "unet",
+        "name": "qwen_image_fp8_e4m3fn.safetensors",
+        "optional": false
+      },
+      {
+        "type": "vae",
+        "name": "qwen_image_vae.safetensors",
+        "optional": false
+      },
+      {
+        "type": "clip",
+        "name": "qwen_2.5_vl_7b.safetensors",
+        "optional": false
+      },
+      {
+        "type": "lora",
+        "name": "Qwen-Image-Lightning-8steps-V1.0.safetensors",
+        "optional": false
+      }
+    ],
+    "nodes": [
+      "KSampler",
+      "CLIPTextEncode",
+      "VAEDecode",
+      "EmptySD3LatentImage",
+      "ModelSamplingAuraFlow",
+      "LoraLoaderModelOnly",
+      "UNETLoader",
+      "CLIPLoader",
+      "VAELoader",
+      "SaveImage"
+    ]
+  }
+}

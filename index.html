@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HOJO Runner - The AI Production Console</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Sora', sans-serif; background: #000000; color: #fff; }
+        .hero-gradient { background: radial-gradient(circle at 50% 0%, #1e293b 0%, #000000 70%); }
+        .btn-glow:hover { box-shadow: 0 0 20px rgba(128, 165, 160, 0.4); }
+    </style>
+</head>
+<body class="antialiased selection:bg-[#80A5A0] selection:text-black">
+
+    <div class="hero-gradient min-h-screen flex flex-col">
+        <!-- Nav -->
+        <nav class="flex items-center justify-between px-8 py-6 max-w-7xl mx-auto w-full">
+            <div class="text-xl font-bold tracking-widest">HOJO AI</div>
+            <div class="text-sm text-gray-400">v0.2 Public Beta</div>
+        </nav>
+
+        <!-- Hero -->
+        <main class="flex-1 flex flex-col items-center justify-center text-center px-4 pt-20">
+            <div class="mb-6 inline-block px-3 py-1 rounded-full border border-[#333] bg-[#111] text-xs text-[#80A5A0] tracking-wide">
+                LOCAL-FIRST PRODUCTION CONSOLE
+            </div>
+            <h1 class="text-5xl md:text-7xl font-bold mb-6 bg-clip-text text-transparent bg-gradient-to-b from-white to-gray-500">
+                Stop Tweaking Nodes.<br>Start Creating.
+            </h1>
+            <p class="text-xl text-gray-400 max-w-2xl mb-10 leading-relaxed">
+                Transform your ComfyUI into a reliable production line. 
+                Scene-based workflow, strict guardrails, and zero cloud dependency.
+            </p>
+            
+            <div class="flex gap-4 flex-col md:flex-row">
+                <a href="/downloads/Runner-v0.2-macOS.zip" class="btn-glow bg-[#80A5A0] text-black px-8 py-4 rounded font-bold text-lg transition-transform hover:-translate-y-1 flex items-center gap-2">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.5 1.3 0 2.55.87 3.35.87.8 0 2.3-.9 3.82-.9 1.3.03 2.29.61 2.89 1.49-2.56 1.37-2.12 4.96.44 6.03-.66 1.57-1.56 3.12-2.61 4.12zM13 3.5c.73-.83 1.21-1.96 1.08-3.12-1.05.05-2.32.7-3.07 1.62-.67.82-1.25 2.08-1.09 3.23 1.17.09 2.36-.9 3.08-1.73z"/></svg>
+                    Download for macOS
+                </a>
+                <a href="#video" class="border border-[#333] hover:border-[#80A5A0] hover:text-[#80A5A0] text-gray-300 px-8 py-4 rounded font-bold text-lg transition-colors flex items-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    View Demo Video
+                </a>
+            </div>
+            
+            <div class="mt-4 text-xs text-gray-600">
+                v0.2 | Universal Binary (Intel/M1)
+            </div>
+        </main>
+
+        <!-- Preview -->
+        <div class="w-full max-w-6xl mx-auto px-4 pb-20 mt-20">
+            <div class="rounded-xl border border-[#333] bg-[#000] shadow-2xl overflow-hidden relative group">
+                <div class="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent z-10 pointer-events-none"></div>
+                <!-- 嵌入 Runner 的截图或者直接嵌入 iframe -->
+                <div class="aspect-[16/9] bg-[#111] relative overflow-hidden">
+                    <!-- 这里我们用 iframe 模拟一下截图效果，实际发布时最好用图片 -->
+                    <iframe src="/v2" class="w-full h-full border-none opacity-50 pointer-events-none scale-100 origin-top"></iframe>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="border-t border-[#222] py-12 text-center text-gray-600 text-sm">
+            <p>&copy; 2025 HOJO AI. Local First. Privacy Forever.</p>
+        </footer>
+    </div>
+</body>
+</html>
+

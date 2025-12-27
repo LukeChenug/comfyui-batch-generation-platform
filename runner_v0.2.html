@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HOJO AI - Runner v0.2</title>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@100..800&family=Noto+Sans+SC:wght@300&display=swap" rel="stylesheet">
+    
+    <!-- Vue 3 & Element Plus -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css" />
+    <script src="https://unpkg.com/element-plus"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@element-plus/icons-vue"></script>
+    
+    <style>
+        :root {
+            --el-color-primary: #80A5A0; /* 核心强调色 */
+            --el-color-primary-light-3: #9fbdb9;
+            --el-color-primary-light-7: #2a3836;
+            --el-color-primary-light-9: #1a2221;
+            --el-bg-color: #000000;
+            --el-bg-color-overlay: #1e1e1e;
+            --el-text-color-primary: #e0e0e0;
+            --el-text-color-regular: #a0a0a0;
+            --el-border-color: #333333;
+            --el-border-color-light: #2c2c2c;
+            --el-fill-color-blank: #0a0a0a;
+        }
+
+        body {
+            font-family: 'Sora', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #000000;
+            color: #e0e0e0;
+            margin: 0;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* 覆盖 Element Plus 样式 */
+        .el-input__wrapper, .el-textarea__inner {
+            background-color: #0a0a0a !important;
+            box-shadow: 0 0 0 1px #333333 inset !important;
+            color: #e0e0e0 !important;
+            border-radius: 4px;
+        }
+        .el-input__wrapper:hover, .el-textarea__inner:hover {
+            box-shadow: 0 0 0 1px #80A5A0 inset !important;
+        }
+        .el-input__wrapper.is-focus, .el-textarea__inner:focus {
+            box-shadow: 0 0 0 1px #80A5A0 inset !important;
+        }
+        
+        .dark-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid #333333;
+            border-radius: 4px;
+        }
+        
+        .hojo-header {
+            border-bottom: 1px solid #333333;
+            background: #000000;
+        }
+        
+        .scene-item:hover {
+            background: rgba(128, 165, 160, 0.1);
+            color: #80A5A0;
+        }
+        .scene-item.active {
+            background: rgba(128, 165, 160, 0.2);
+            border: 1px solid #80A5A0;
+            color: #80A5A0;
+        }
+
+        /* 滚动条 */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #000000; }
+        ::-webkit-scrollbar-thumb { background: #333333; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #80A5A0; }
+    </style>
+</head>
+<body class="flex flex-col">
+
+    <div id="app" class="h-full flex flex-col">
+        <!-- Header -->
+        <header class="hojo-header h-14 flex items-center px-6 shrink-0 justify-between">
+            <h1 class="text-lg font-bold tracking-widest text-white font-[Sora]">HOJO AI <span class="text-xs font-normal text-[#80A5A0] ml-2">RUNNER v0.2</span></h1>
+            <div class="flex items-center gap-4">
+                <div class="flex items-center gap-2 text-xs font-mono">
+                    <span class="w-2 h-2 rounded-full" :class="serverStatus.api_server === 'online' ? 'bg-[#80A5A0]' : 'bg-red-500'"></span>
+                    <span :class="serverStatus.api_server === 'online' ? 'text-[#80A5A0]' : 'text-red-500'">API</span>
+                </div>
+                <div class="flex items-center gap-2 text-xs font-mono">
+                    <span class="w-2 h-2 rounded-full" :class="serverStatus.comfyui_server === 'online' ? 'bg-[#80A5A0]' : 'bg-red-500'"></span>
+                    <span :class="serverStatus.comfyui_server === 'online' ? 'text-[#80A5A0]' : 'text-red-500'">ComfyUI</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main -->
+        <div class="flex-1 flex overflow-hidden">
+            
+            <!-- Sidebar (Scenes) -->
+            <div class="w-64 border-r border-[#333333] bg-[#050505] flex flex-col shrink-0">
+                <div class="p-4 text-xs font-bold text-[#666] uppercase tracking-wider">SCENES</div>
+                <div class="flex-1 overflow-y-auto px-2 space-y-1">
+                    <div v-for="scene in scenes" :key="scene.id" 
+                         @click="selectScene(scene)"
+                         class="scene-item p-3 rounded cursor-pointer transition-all border border-transparent text-sm font-medium text-gray-400"
+                         :class="{ 'active': currentScene?.id === scene.id }">
+                        <div>{{ scene.meta?.title || scene.id }}</div>
+                        <div class="text-[10px] opacity-60 mt-1 font-normal line-clamp-1">{{ scene.meta?.description }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Config Panel -->
+            <div class="flex-1 flex flex-col min-w-0 bg-[#000000] overflow-y-auto border-r border-[#333333]">
+                <div v-if="currentScene" class="p-8 max-w-4xl mx-auto w-full">
+                    <div class="mb-8 border-b border-[#333333] pb-6">
+                        <h2 class="text-2xl font-bold text-white mb-2 font-[Sora]">{{ currentScene.meta?.title }}</h2>
+                        <p class="text-gray-500 text-sm">{{ currentScene.meta?.description }}</p>
+                    </div>
+
+                    <el-form label-position="top" class="space-y-8">
+                        <el-form-item label="PROMPT">
+                            <el-input 
+                                v-model="formData.prompt" 
+                                type="textarea" 
+                                :rows="5" 
+                                placeholder="Describe your imagination..."
+                                class="font-[Sora]"
+                            ></el-input>
+                        </el-form-item>
+
+                        <el-form-item label="NEGATIVE PROMPT">
+                            <el-input 
+                                v-model="formData.negative_prompt" 
+                                type="textarea" 
+                                :rows="2"
+                                placeholder="What to avoid..."
+                                class="font-[Sora]"
+                            ></el-input>
+                        </el-form-item>
+
+                        <div class="grid grid-cols-2 gap-8">
+                            <el-form-item label="ASPECT RATIO">
+                                <el-select v-model="formData.aspect_ratio" placeholder="Select ratio">
+                                    <el-option label="1:1 Square" value="1:1"></el-option>
+                                    <el-option label="4:3 Landscape" value="4:3"></el-option>
+                                    <el-option label="3:4 Portrait" value="3:4"></el-option>
+                                    <el-option label="16:9 Widescreen" value="16:9"></el-option>
+                                </el-select>
+                            </el-form-item>
+
+                            <el-form-item label="BATCH SIZE">
+                                <el-input-number v-model="formData.batch_size" :min="1" :max="4" class="!w-full"></el-input-number>
+                            </el-form-item>
+                        </div>
+                        
+                        <div class="pt-8">
+                            <el-button color="#80A5A0" size="large" @click="submitJob" :loading="submitting" class="w-full !font-bold !tracking-wider !h-12 !text-black !border-none hover:opacity-90">
+                                GENERATE
+                            </el-button>
+                        </div>
+                    </el-form>
+                </div>
+                <div v-else class="flex-1 flex items-center justify-center text-[#333]">
+                    <div class="text-center">
+                        <div class="text-4xl mb-4 opacity-30">🎨</div>
+                        <div>Select a scene to start</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Job Queue -->
+            <div class="w-80 bg-[#050505] flex flex-col shrink-0">
+                <div class="p-4 border-b border-[#333333] flex justify-between items-center h-14">
+                    <h3 class="font-bold text-[#666] text-xs uppercase tracking-wider">QUEUE</h3>
+                    <el-button link size="small" @click="fetchJobs" class="!text-[#80A5A0]">REFRESH</el-button>
+                </div>
+                
+                <div class="flex-1 overflow-y-auto p-4 space-y-4">
+                     <div v-if="jobs.length === 0" class="text-center text-[#333] text-xs py-10">
+                        NO ACTIVE TASKS
+                    </div>
+                    <div v-for="job in jobs" :key="job.task_id" class="dark-card rounded p-3 text-sm transition-all hover:border-[#80A5A0]">
+                        <div class="flex justify-between items-start mb-3">
+                            <span class="font-mono text-[10px] text-[#666]">#{{ job.task_id.slice(0, 6) }}</span>
+                            <span :class="{
+                                'text-yellow-500': job.status === 'pending',
+                                'text-[#80A5A0]': job.status === 'running',
+                                'text-green-500': job.status === 'completed',
+                                'text-red-500': job.status === 'failed'
+                            }" class="text-[10px] font-bold uppercase tracking-wider">{{ job.status }}</span>
+                        </div>
+                        
+                        <div v-if="job.request_data?.prompt" class="text-slate-300 line-clamp-2 mb-2 text-xs opacity-80">
+                            {{ job.request_data.prompt }}
+                        </div>
+
+                        <!-- Progress Bar -->
+                        <div class="w-full bg-[#0a0a0a] h-1 mb-3 overflow-hidden rounded-full">
+                            <div class="bg-[#80A5A0] h-1 transition-all duration-500" 
+                                 :style="{ width: (job.progress || 0) + '%' }"></div>
+                        </div>
+
+                        <!-- Result Image -->
+                        <div v-if="job.status === 'completed' && job.result_url" class="rounded overflow-hidden border border-[#333333] group relative cursor-pointer">
+                            <img :src="'/images/' + job.result_url" class="w-full h-auto object-cover" loading="lazy">
+                            <div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm">
+                                <a :href="'/images/' + job.result_url" target="_blank" class="text-white text-xs font-bold border border-white px-3 py-1 rounded-full hover:bg-white hover:text-black transition-colors">VIEW</a>
+                            </div>
+                        </div>
+
+                        <!-- Download ZIP Button -->
+                        <div v-if="job.status === 'completed'" class="flex gap-2 mt-2">
+                            <a :href="'/jobs/' + job.task_id + '/zip'" 
+                               target="_blank"
+                               class="flex-1 text-center bg-[#333] hover:bg-[#80A5A0] hover:text-black border border-[#444] text-[#ccc] text-[10px] py-1.5 rounded transition-colors font-bold tracking-wider uppercase">
+                               DOWNLOAD ZIP
+                            </a>
+                        </div>
+
+                        <div v-if="job.status === 'failed'" class="text-[10px] text-red-400 bg-red-900/10 p-2 border border-red-900/30 mt-2 rounded">
+                            {{ job.error || job.message }}
+                        </div>
+                        
+                        <div class="mt-2 flex justify-between text-[10px] text-[#555]">
+                            <span>{{ formatTime(job.created_at) }}</span>
+                            <span>{{ job.progress }}%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, onMounted } = Vue;
+        
+        // MVP: Hardcoded Admin Token
+        const AUTH_TOKEN = "sk-admin-123456";
+
+        createApp({
+            setup() {
+                const scenes = ref([]);
+                const currentScene = ref(null);
+                const formData = ref({
+                    prompt: "",
+                    negative_prompt: "",
+                    aspect_ratio: "1:1",
+                    batch_size: 1,
+                    seed: null
+                });
+                const jobs = ref([]);
+                const serverStatus = ref({ api_server: 'checking...', comfyui_server: 'checking...' });
+                const submitting = ref(false);
+
+                // Load Scenes (MOCK)
+                const fetchScenes = async () => {
+                    scenes.value = [{
+                        id: 'storybook',
+                        meta: {
+                            title: 'Storybook Illustration',
+                            description: 'Stable generation for children book art style.',
+                            engine: 'comfyui'
+                        },
+                        ui_schema: {}
+                    }];
+                    if (scenes.value.length > 0) selectScene(scenes.value[0]);
+                };
+
+                const selectScene = (scene) => { currentScene.value = scene; };
+
+                const submitJob = async () => {
+                    if (!formData.value.prompt) return ElementPlus.ElMessage.warning('Prompt is required');
+                    submitting.value = true;
+                    try {
+                        const payload = {
+                            prompt: formData.value.prompt,
+                            negative_prompt: formData.value.negative_prompt,
+                            aspect_ratio: formData.value.aspect_ratio,
+                            batch_size: formData.value.batch_size,
+                            seed: formData.value.seed
+                        };
+                        const res = await fetch('/generate', { 
+                            method: 'POST',
+                            headers: { 
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${AUTH_TOKEN}`
+                            },
+                            body: JSON.stringify(payload)
+                        });
+                        if (!res.ok) throw new Error(await res.text());
+                        fetchJobs();
+                        ElementPlus.ElMessage.success('Job submitted successfully');
+                    } catch (e) {
+                        ElementPlus.ElMessage.error(e.message);
+                    } finally {
+                        submitting.value = false;
+                    }
+                };
+
+                const fetchJobs = async () => {
+                    try {
+                        const res = await fetch('/tasks', {
+                            headers: { 'Authorization': `Bearer ${AUTH_TOKEN}` }
+                        });
+                        if (res.status === 401) {
+                            console.error("Auth failed");
+                            return;
+                        }
+                        const data = await res.json();
+                        if (data.tasks) {
+                            jobs.value = data.tasks.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+                        }
+                    } catch (e) { console.error(e); }
+                };
+
+                const checkHealth = async () => {
+                    try {
+                        const res = await fetch('/health');
+                        serverStatus.value = await res.json();
+                    } catch (e) {
+                        serverStatus.value = { api_server: 'offline', comfyui_server: 'offline' };
+                    }
+                };
+
+                const formatTime = (iso) => {
+                    if (!iso) return '';
+                    const date = new Date(iso);
+                    return date.toLocaleTimeString();
+                };
+
+                onMounted(() => {
+                    fetchScenes();
+                    fetchJobs();
+                    checkHealth();
+                    setInterval(fetchJobs, 2000);
+                    setInterval(checkHealth, 5000);
+                });
+
+                return { scenes, currentScene, formData, jobs, serverStatus, submitting, selectScene, submitJob, fetchJobs, formatTime };
+            }
+        }).use(ElementPlus).mount('#app');
+    </script>
+</body>
+</html>

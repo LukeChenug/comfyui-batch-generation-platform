@@ -3,14 +3,14 @@ import os
 from pathlib import Path
 
 # ComfyUI 配置 (原生/本地)
-COMFYUI_SERVER = os.getenv("COMFYUI_SERVER", "http://106.75.213.77:8188")
-COMFYUI_WS = os.getenv("COMFYUI_WS", "ws://106.75.213.77:8188/ws")
+# 根据用户截图，ComfyUI 运行在 8000 端口
+COMFYUI_SERVER = os.getenv("COMFYUI_SERVER", "http://127.0.0.1:8000")
+COMFYUI_WS = os.getenv("COMFYUI_WS", "ws://127.0.0.1:8000/ws")
 
-# ComfyUI Deploy 配置 (云端)
-# ⚠️ 调试模式：强制开启，并使用硬编码的 Key 和 ID
-USE_COMFY_DEPLOY = True
-COMFY_DEPLOY_API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoidXNlcl8zNjM5UllsMW03cFROS1o3REdVVTNRWmlpVFciLCJpYXQiOjE3NjQyMzE4NDIsIm9yZ19pZCI6Im9yZ18zNjM5VkZXYTNQNU56RnNIMTZuZmJaS294cUUifQ.BoKEoHBuVBFKMrMqwRmakFBO9KOA3yOSd-x0k9cmkm4"
-COMFY_DEPLOY_DEPLOYMENT_ID = "f6cd9d42-eee8-4aa8-86cb-fa7ece757cfd"
+# ComfyUI Deploy 配置 (云端) - MVP 阶段禁用
+USE_COMFY_DEPLOY = False
+# COMFY_DEPLOY_API_KEY = "..."
+# COMFY_DEPLOY_DEPLOYMENT_ID = "..."
 COMFY_DEPLOY_HOST = "https://api.comfydeploy.com"
 
 # 配置检查日志（移除emoji以兼容Windows GBK编码）

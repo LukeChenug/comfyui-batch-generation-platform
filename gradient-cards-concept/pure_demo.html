@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="./assets/cupcake.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gradient Cards Concept</title>
+    <style>
+    @import url('https://cdnjs.cloudflare.com/ajax/libs/modern-normalize/2.0.0/modern-normalize.min.css');
+    @import url('https://fonts.googleapis.com/css2?family=Raleway:ital,wght@0,100..900;1,100..900&display=swap');
+
+    :root {
+        --transition-duration: .2s;
+        --transition-timing-function: linear;
+        --transition-delay: 0s;
+
+        --text-color-demo-dark: #2c2c2c;
+        --text-color-demo-light: #fff;
+
+        --bg-demo-light: #fff;
+        --bg-demo-dark: #2c2c2c;
+
+    }
+
+    html,
+    body {
+        display: flex;
+        flex-direction: column;
+        min-height: 100vh;
+        font-family: "Raleway", sans-serif;
+        font-optical-sizing: auto;
+        font-weight: 400;
+        font-style: normal;
+        color: var(--text-color-demo-dark);
+    }
+
+    /* DEMO STYLES: YOU DON'T NEED THEM!!! */
+    body a {
+        color: inherit;
+        text-decoration: none;
+    }
+
+    .header {
+        max-width: 500px;
+        padding-top: 50px;
+        margin: 0 auto;
+        text-align: center;
+    }
+
+    .header__btns {
+        display: flex;
+        justify-content: center;
+        gap: 15px;
+        margin-top: 30px;
+    }
+
+    .header__btn {
+        --btn-border-color: #2c2c2c;
+
+        transition:
+                all
+                var(--transition-duration)
+                var(--transition-timing-function)
+                var(--transition-delay);
+        padding: 10px 20px;
+        margin-right: 10px;
+        background-color: var(--bg-demo-light);
+        border: 2px solid var(--btn-border-color);
+        border-radius: 3px;
+        cursor: pointer;
+        outline: none;
+    }
+
+    .header__btn:hover,
+    .header__btn.js-active {
+        color: var(--text-color-demo-light);
+        background-color: var(--bg-demo-dark);
+    }
+
+    .header__title {
+        margin-bottom: 10px;
+        font-weight: 600;
+    }
+
+    .content {
+        margin: 80px auto 60px;
+        width: 100%;
+    }
+
+    .subtitle {
+        margin-top: 0;
+        margin-bottom: 50px;
+        text-align: center;
+    }
+
+    .container {
+        display: grid;
+        width: 95%;
+        max-width: 950px;
+        margin: 0 auto;
+        grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+        gap: 30px;
+    }
+
+    .footer {
+        margin-top: auto;
+        padding: 15px;
+        color: var(--text-color-demo-light);
+        text-align: center;
+        background-color: var(--bg-demo-dark);
+    }
+
+    .footer__content p:first-child {
+        margin-top: 0;
+    }
+
+    .footer__content p:last-child {
+        margin-bottom: 0;
+    }
+
+    .footer__content a {
+        text-decoration: underline;
+    }
+
+    /* CARDS STYLES: YOU NEED THEM!!! */
+    .card {
+        --card-text-color: #fff;
+
+        position: relative;
+        background-image: linear-gradient(to right bottom, var(--card-gradient-start), var(--card-gradient-end));
+        border-radius: 10px;
+    }
+
+    .card:before {
+        position: absolute;
+        top: 5%;
+        left: 5%;
+        display: block;
+        width: 90%;
+        height: 95%;
+        margin: auto;
+        content: '';
+        background-image: linear-gradient(to right, var(--card-shadow-gradient-start), var(--card-shadow-gradient-end));
+        filter: blur(10px);
+        z-index: -1;
+    }
+
+
+    .card:nth-child(1) {
+        --card-gradient-start: #FAAC7A;
+        --card-gradient-end: #F64D82;
+
+        --btn-gradient-start: #FDC905;
+        --btn-gradient-end: #FEB036;
+        --btn-text-color: #FF3B8C;
+
+        --card-shadow-gradient-start: #deaf00;
+        --card-shadow-gradient-end: #FF3B8C;
+
+        --icon-decorations-gradient: #FDC905;
+    }
+
+    .card:nth-child(2) {
+        --card-gradient-start: #5BAEDD;
+        --card-gradient-end: #644EDC;
+
+        --btn-gradient-start: #89FDFD;
+        --btn-gradient-end: #57DDE0;
+        --btn-text-color: #184BB0;
+
+        --card-shadow-gradient-start: #644EDC;
+        --card-shadow-gradient-end: #57DDE0;
+
+        --icon-decorations-gradient: #29faff;
+    }
+
+    .card:nth-child(3) {
+        --card-gradient-start: #8C3FAE;
+        --card-gradient-end: #3B0E61;
+
+        --btn-gradient-start: #D367FF;
+        --btn-gradient-end: #9738FF;
+        --btn-text-color: #3A0D60;
+
+        --card-shadow-gradient-start: #3B0E61;
+        --card-shadow-gradient-end: #D367FF;
+
+        --icon-decorations-gradient: #d97bff;
+    }
+
+    .card__content {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 20px;
+        padding: 40px 20px;
+        font-size: 17px;
+        font-weight: 500;
+        color: var(--card-text-color);
+        text-align: center;
+        overflow: hidden;
+    }
+
+    .card__content:before,
+    .card__content:after {
+        --rotation: -101deg;
+
+        position: absolute;
+        top: 0;
+        right: -250px;
+        display: block;
+        width: var(--dimensions);
+        height: var(--dimensions);
+        content: '';
+        background-image: conic-gradient(from 90deg, rgba(255, 255, 255, .2), transparent);
+        border-radius: 50%;
+        transform: rotate(var(--rotation));
+    }
+
+    .card__content:before {
+        --dimensions: 400px;
+    }
+
+
+    .card__content:after {
+        --dimensions: 370px;
+    }
+
+    .card__icon {
+        position: relative;
+        width: 200px;
+        height: 150px;
+    }
+
+    .card__icon:before {
+        position: absolute;
+        top: 0;
+        left: 0;
+        display: block;
+        width: 100%;
+        height: 100%;
+        content: '';
+        background-image:
+                radial-gradient(circle closest-side, var(--icon-decorations-gradient) 100%, rgba(255,255,255,0) 0),
+                radial-gradient(circle closest-side, var(--icon-decorations-gradient) 100%, rgba(255,255,255,0) 0),
+                radial-gradient(circle closest-side, var(--icon-decorations-gradient) 100%, rgba(255,255,255,0) 0);
+        background-size: 15px 15px, 20px 20px, 15px 15px;
+        background-position: 20px 20px, 160px 60px, 40px 90px;
+        background-repeat: no-repeat;
+        z-index: 1;
+    }
+
+    .card__icon svg {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        fill: rgba(255, 255, 255, .1);
+        backdrop-filter: blur(7px);
+        z-index: 2;
+    }
+
+    .card__icon img {
+        position: relative;
+        width: 70%;
+        z-index: 3;
+    }
+
+    .card__title {
+        position: relative;
+        font-size: 20px;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        z-index: 2;
+    }
+
+    .card__title h3 {
+        margin: 0;
+    }
+
+    .card__descr p:first-child {
+        margin-top: 0;
+    }
+
+    .card__descr p:last-child {
+        margin-bottom: 0;
+    }
+
+    .card__price {
+        font-size: 40px;
+        font-weight: bold;
+        letter-spacing: 2px;
+    }
+
+    .card__btn-wrapper {
+        margin-top: 10px;
+    }
+
+    .card__btn {
+        padding: 15px 70px;
+        color: var(--btn-text-color);
+        font-size: 22px;
+        font-weight: bold;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        transition: transform 0.2s linear 0s;
+        border: none;
+        border-radius: 100px;
+        background-image: linear-gradient(to right, var(--btn-gradient-start), var(--btn-gradient-end));
+        background-color: transparent;
+        cursor: pointer;
+    }
+
+    .card__btn:hover {
+        transform: scale(1.05);
+    }
+    </style>
+  </head>
+  <body>
+
+    <header class="header">
+      <h1 class="header__title">Gradient Cards Concept</h1>
+      <div class="header__btns">
+        <a
+          href="https://github.com/nat-davydova/gradient-cards-concept"
+          class="header__btn"
+          target="_blank"
+          title="Check On Github"
+        >Check On Github</a >
+      </div>
+    </header>
+
+    <div class="content">
+      <div class="container">
+
+        <div class="card">
+          <div class="card__content">
+            <div class="card__icon">
+              <svg xmlns="http://www.w3.org/2000/svg" x="0px" y="0px" viewBox="0 0 350 300">
+                <path id="&lt;Path&gt;" class="s0" d="m282.9 41.6c-34.5-17.7-68.7-54.3-113-36-44.2 18.3-62 36.8-94.1 40.5-32 3.6-82.2 21-74.9 86.8 5.6 50.2 45 75.5 76.2 84.4 31.3 8.8 48.1 44.7 90.7 40.1 35.5-3.8 64.4-35.2 82.3-52.3 32.9-31.6 78.7-34.4 91.1-68.2 11.6-31.7-23.8-77.7-58.3-95.3z"/>
+              </svg>
+              <img src="./assets/cupcake.svg" alt="Cupcake Icon" />
+            </div>
+            <div class="card__title">
+              <h3>Cupcake</h3>
+            </div>
+            <div class="card__descr">
+              <p>Fluffy chocolate cupcake with creamy frosting</p>
+            </div>
+            <div class="card__price">
+              <span>$6</span>
+            </div>
+            <div class="card__btn-wrapper">
+              <button class="card__btn" type="button">Buy</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card__content">
+            <div class="card__icon">
+              <svg xmlns="http://www.w3.org/2000/svg" x="0px" y="0px" viewBox="0 0 340 300">
+                <path id="&lt;Path&gt;" class="s0" d="m149.2 17.4c-64-5.4-102.7-35.7-134.7 0-32 35.7-17 153.4 112.1 183.6 129.5 30.3 194.9-58.1 198.4-108.7 3.5-50.6-19.8-89.3-68-89.8-50.6-0.5-78.3 17.4-107.8 14.9z"/>
+              </svg>
+              <img src="./assets/ice-cream.svg" alt="Ice Cream Icon" />
+            </div>
+            <div class="card__title">
+              <h3>Ice Cream</h3>
+            </div>
+            <div class="card__descr">
+              <p>Refreshing ice cream bursting with fresh, juicy berries</p>
+            </div>
+            <div class="card__price">
+              <span>$7</span>
+            </div>
+            <div class="card__btn-wrapper">
+              <button class="card__btn" type="button">Buy</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card__content">
+            <div class="card__icon">
+              <svg xmlns="http://www.w3.org/2000/svg" x="0px" y="0px" viewBox="0 0 361 246">
+                <path id="&lt;Path&gt;" class="s0" d="m157.6 0.8c-85.9 0-145.2 46.6-155.9 122.2-10.8 75.6 49.2 137.5 113.2 119.5 63.9-18.1 87.2-34.1 127-21.5 70.7 22.3 125.1-8 117.9-70.3-9.4-82.5-81.1-150-202.2-149.9z"/>
+              </svg>
+              <img src="./assets/lollipop.svg" alt="Candy Icon" />
+            </div>
+            <div class="card__title">
+              <h3>Candy Swirl</h3>
+            </div>
+            <div class="card__descr">
+              <p>Colorful candy swirls with a delightful burst of sweetness</p>
+            </div>
+            <div class="card__price">
+              <span>$3</span>
+            </div>
+            <div class="card__btn-wrapper">
+              <button class="card__btn" type="button">Buy</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <footer class="footer">
+      <div class="footer__content">
+        <p>Inspired by <a href="https://dribbble.com/shots/4722516-Gradient-Cards" title="Dribbble Shot" target="_blank">Dribbble Shot</a></p>
+      </div>
+    </footer>
+
+  </body>
+</html>
+
